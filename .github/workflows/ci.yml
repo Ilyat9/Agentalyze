@@ -1,3 +1,29 @@
+# =============================================================================
+# Полноценный CI (Фаза 7). Четыре параллельных job'а на каждый push/PR:
+#
+#   lint          — ruff (блокирующий) + mypy (консультативный, см. ниже)
+#   test-fast     — все быстрые тесты фаз 0–6, без браузера и внешних сервисов
+#   test-browser  — тесты с реальным Chromium (кэш браузеров между запусками)
+#   docker-build  — сборка образа + smoke-тест CLI
+#
+# Осознанно НЕТ автоматического job'а с платным облачным LLM API: он требует
+# секретов в репозитории и стоит денег на каждый PR. Вместо этого есть ручной
+# job `e2e-live-manual` — только по workflow_dispatch.
+#
+# Про маркеры: pytest-маркеры проекта — `browser`, `requires_ollama`,
+# `e2e_live` (заданы в pyproject.toml ещё в Фазе 0). Быстрые тесты =
+# "not browser and not requires_ollama and not e2e_live" (это ещё и addopts
+# по умолчанию; здесь прописано явно для наглядности). Тест e2e_live несёт
+# ОБА маркера (browser + e2e_live), поэтому browser-job обязан явно исключить
+# e2e_live, иначе он потянет реальную модель.
+#
+# Про mypy: pyproject.toml содержит strict = true, но существующий код фаз
+# 0–6 ему не соответствует (26 ошибок в 9 файлах). По решению Фазы 7 это не
+# блокирует CI: шаг mypy консультативный (continue-on-error), чтобы ошибки
+# были видны в логах, но не красили пайплайн. Долг зафиксирован в
+# KNOWN_LIMITATIONS.md и требует отдельной сессии типизации.
+# =============================================================================
+
 name: CI
 
 on:
@@ -5,9 +31,34 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Нужен ТОЛЬКО чтобы стал доступен ручной e2e-live-manual ниже;
+  # обычные push/PR он не затрагивает.
+  workflow_dispatch:
 
 jobs:
-  test:
+  # ---------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]" types-PyYAML
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Mypy (advisory — see header comment)
+        continue-on-error: true
+        run: mypy src
+
+  # ---------------------------------------------------------------------------
+  test-fast:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +71,107 @@ jobs:
       - name: Install package with dev dependencies
         run: pip install -e ".[dev]"
 
-      - name: Lint
-        run: ruff check .
+      - name: Run fast tests (no browser, no external services)
+        run: pytest -m "not browser and not requires_ollama and not e2e_live"
 
-      - name: Run tests
-        run: pytest
+  # ---------------------------------------------------------------------------
+  test-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package with browser extra
+        run: pip install -e ".[dev,browser]"
+
+      - name: Resolve Playwright version (cache key component)
+        id: pw-version
+        run: echo "version=$(pip show playwright | awk '/^Version:/ {print $2}')" >> "$GITHUB_OUTPUT"
+
+      # Chromium-бинарники весят десятки мегабайт — кэшируем каталог, куда
+      # их ставит `playwright install`, между запусками CI.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Chromium
+        run: playwright install --with-deps chromium
+
+      # Реальный Chromium, но БЕЗ реальных моделей: валидация фикстур задач и
+      # browser-инструментов раннера (Фазы 1/3). Всё, что зовёт живого
+      # провайдера (e2e_live), исключено; провайдерная логика покрыта
+      # FakeProvider-ами из тестов Фаз 3/5 в job'е test-fast.
+      - name: Run browser tests
+        run: pytest -m "browser and not e2e_live"
+
+  # ---------------------------------------------------------------------------
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t agentbench-lite:ci .
+
+      - name: Smoke test — CLI help prints and exits cleanly
+        run: |
+          OUTPUT="$(docker run --rm agentbench-lite:ci --help)"
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -qi "usage\|agentalyze\|agentbench"
+
+      - name: Smoke test — task registry loads inside the container
+        run: |
+          OUTPUT="$(docker run --rm agentbench-lite:ci tasks)"
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "registered tasks"
+
+  # ---------------------------------------------------------------------------
+  # РУЧНОЙ честный end-to-end прогон с настоящим платным провайдером.
+  # Никогда не выполняется на push/pull_request — только по запросу
+  # (Actions -> CI -> Run workflow). Требует секрет OPENROUTER_API_KEY.
+  # ---------------------------------------------------------------------------
+  e2e-live-manual:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package with browser extra + Chromium
+        run: |
+          pip install -e ".[browser]" types-PyYAML
+          playwright install chromium
+
+      - name: Write throwaway providers.yaml
+        run: |
+          cat > providers.yaml <<'EOF'
+          providers:
+            - name: gpt-4o-mini-via-openrouter
+              kind: openai_compatible
+              base_url: https://openrouter.ai/api/v1
+              api_key_env_var: OPENROUTER_API_KEY
+              model_name: openai/gpt-4o-mini
+          EOF
+
+      - name: One real task, one real model, real Chromium
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: agentbench run --task nav-simple-link-01 --provider gpt-4o-mini-via-openrouter
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-live-run
+          path: results/
