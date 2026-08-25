@@ -307,6 +307,7 @@ async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTra
     trace = RunTrace(
         run_id=run_id,
         task_id=task.id,
+        task_category=task.category,  # Phase 4: enables per-category metrics
         provider_name=provider.name,
         started_at=started_at,
         finished_at=_utcnow(),

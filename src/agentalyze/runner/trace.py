@@ -22,7 +22,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from agentalyze.providers.base import ChatMessage, CompletionResult, ToolCall
-from agentalyze.tasks.models import VerificationResult
+from agentalyze.tasks.models import TaskCategory, VerificationResult
 
 
 class RunOutcome(str, Enum):
@@ -96,6 +96,17 @@ class RunTrace(BaseModel):
 
     run_id: str = Field(description="UUID identifying this run; also the artifact directory name.")
     task_id: str
+    # --- Phase 4 extension: analysis needs the task's category for the
+    # --- per-category metric breakdown. Optional with a None default so
+    # --- traces saved by Phase 3 deserialize unchanged; such old traces are
+    # --- simply skipped in `by_category` aggregations.
+    task_category: TaskCategory | None = Field(
+        default=None,
+        description=(
+            "Category of the task this run belongs to (Phase 4+). None on "
+            "traces written before this field existed; they still load fine."
+        ),
+    )
     provider_name: str
     started_at: datetime
     finished_at: datetime
