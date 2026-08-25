@@ -5,8 +5,8 @@ generic benchmarks, Agentalyze focuses on a task suite of concrete agentic web
 tasks (form filling, fact extraction with confidence, tool-error recovery) and
 pinpoints *where exactly* an agent breaks — not just the success rate.
 
-> **Проект в разработке, реализуется поэтапно. Текущая фаза: 3 — раннер
-> (ReAct-цикл, трейсы) завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
+> **Проект в разработке, реализуется поэтапно. Текущая фаза: 4 — метрики и
+> failure-таксономия завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
 
 ## Требования
 
@@ -70,6 +70,62 @@ results/<run_id>/screenshots/step_N.png  # скриншот страницы п�
 (`success`, `failure_verifier`, `failure_max_steps`, `failure_timeout`,
 `failure_provider_error`, `failure_tool_error`, `failure_crash`) — на этих
 сырых трейсах строятся аналитические Фазы 4–6.
+
+## Analysis (Фаза 4)
+
+Аналитический слой (`src/agentalyze/analysis/`) читает готовые `RunTrace`-объекты
+и превращает их в структурированные метрики. Он ничего не запускает (ни браузер,
+ни модель) и ничего не рисует — читаемые отчёты и сравнение моделей появятся в
+Фазе 5; здесь только вычисления, всё покрывается быстрыми unit-тестами
+(`pytest tests/analysis/`, доли секунды).
+
+Что считается:
+
+* **Failure-таксономия** (`failure_taxonomy.py`) — `classify_failure(trace)`
+  присваивает неудачному прогону один или несколько тегов из `FailureTag`:
+  неверный выбор инструмента, галлюцинация element_id, зацикливание,
+  исчерпание бюджета «в движении» vs «в ступоре», проигнорированная ошибка
+  инструмента, подозрение на преждевременное `done(success=true)`, осознанный
+  отказ. Каждый тег — конкретная задокументированная эвристика с настраиваемым
+  порогом, не «на глаз».
+* **Агрегированные метрики** (`metrics.py`) — `compute_metrics(traces)`
+  (трейсы одного провайдера): success rate, разбивка по исходам и по
+  failure-тегам, стоимость, латентность p50/p95 вызова модели, среднее число
+  шагов и рекурсивная разбивка по категориям задач (`by_category`) — видно,
+  где именно модель проваливает («сильна в NAVIGATION, тонет в ERROR_RECOVERY»).
+* **Калибровка уверенности** (`calibration.py`) —
+  `compute_calibration_report(traces)` собирает пары «заявленная confidence из
+  done(...) против фактического вердикта верификатора», бинует [0,1] и считает
+  ECE. При малом числе непустых бинов отчёт явно предупреждает о низкой
+  статистической значимости.
+* **Стоимость** (`pricing.py` + `cost.py`) — перевод токенов в USD по
+  редактируемой таблице цен: скопируйте
+  [`pricing.example.yaml`](pricing.example.yaml) в `pricing.yaml`. Цены НЕ
+  захардкожены в коде — проверяйте актуальные цены у своего провайдера перед
+  финансовыми решениями. Провайдер без записи в таблице даёт «стоимость
+  неизвестна» (`None`); локальный Ollama с `free: true` даёт честные `$0.0`.
+
+Пример:
+
+```python
+from pathlib import Path
+
+from agentalyze.analysis import classify_failure, compute_calibration_report, compute_metrics, load_pricing
+from agentalyze.runner.trace import load_trace
+
+traces = [load_trace(p) for p in Path("results").glob("*/trace.json")]
+
+for t in traces:
+    if not t.success:
+        print(t.task_id, [tag.value for tag in classify_failure(t)])
+
+metrics = compute_metrics(traces, pricing=load_pricing(Path("pricing.yaml")))
+print(metrics.success_rate, metrics.p95_latency_seconds)
+print({cat.value: m.success_rate for cat, m in metrics.by_category.items()})
+
+calibration = compute_calibration_report(traces)
+print(calibration.ece, calibration.low_statistics_warning)
+```
 
 ## Запуск тестов
 
@@ -242,9 +298,11 @@ pytest -m requires_ollama
   - `src/agentalyze/tasks/` — реестр задач, модели, сервер фикстур, верификаторы
   - `src/agentalyze/providers/` — единый интерфейс LLM-провайдеров, factory, retry
   - `src/agentalyze/runner/` — ReAct-цикл, browser-инструменты, наблюдение страницы, формат трейса (`trace.py`), CLI (`cli.py`)
+  - `src/agentalyze/analysis/` — failure-таксономия, агрегированные метрики, калибровка уверенности, цены/стоимость (Фаза 4)
 - `tests/` — тесты (`pytest`)
 - `fixtures/` — локальные HTML-фикстуры для задач (по подпапкам-категориям)
 - `providers.example.yaml` — шаблон конфигурации LLM-провайдеров
+- `pricing.example.yaml` — шаблон таблицы цен для расчёта стоимости прогонов
 
 ## Лицензия
 
