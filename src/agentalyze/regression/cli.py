@@ -1,0 +1,196 @@
+"""CLI handlers for Phase 6: ``agentbench regression-check`` / ``set-baseline``.
+
+Not a second entry point: the parsers are registered by
+``agentalyze.runner.cli`` (the single ``agentbench`` command), same pattern
+as the Phase 5 orchestration commands.
+
+CI-gate contract (the reason this phase exists)::
+
+    exit 0 — no regressions (or --allow-regressions was passed)
+    exit 1 — regressed_count > 0 and regressions are not allowed
+    exit 2 — usage/configuration problem (unknown run id, no baseline set)
+
+The numeric codes are load-bearing: a CI step fails exactly when the gate
+returns 1. They are pinned by tests/regression/test_cli_exit_codes.py.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from agentalyze.config import Settings
+from agentalyze.regression.diff import TaskDiff, TaskDiffStatus, compute_regression
+from agentalyze.regression.storage import (
+    BaselineNotSetError,
+    SuiteRunNotFoundError,
+    get_current_baseline,
+    load_saved_suite_run,
+    require_current_baseline,
+    save_regression_report,
+    set_baseline,
+)
+
+_SECTION_TITLES = {
+    TaskDiffStatus.REGRESSED: "REGRESSED",
+    TaskDiffStatus.FIXED: "FIXED",
+    TaskDiffStatus.NEWLY_ADDED: "NEWLY ADDED (task appeared after the baseline)",
+    TaskDiffStatus.REMOVED: "REMOVED (task absent from the new run)",
+}
+
+
+def _outcome_label(outcome) -> str:
+    return outcome.value if outcome is not None else "<absent>"
+
+
+def _print_diff_line(diff: TaskDiff, settings: Settings) -> None:
+    line = (
+        f"  - task={diff.task_id}  provider={diff.provider_name}  "
+        f"{_outcome_label(diff.baseline_outcome)} -> {_outcome_label(diff.new_outcome)}"
+    )
+    if diff.cost_delta_usd is not None:
+        line += f"  cost_delta=${diff.cost_delta_usd:+.4f}"
+    if diff.steps_delta is not None:
+        line += f"  steps_delta={diff.steps_delta:+d}"
+    print(line)
+    # The trace pointer is what a developer follows right after seeing the
+    # regression line — one concrete artifact per side of the comparison.
+    for run_id in (diff.baseline_run_id, diff.new_run_id):
+        if run_id is not None:
+            trace_path = Path(settings.results_dir) / run_id / "trace.json"
+            print(f"      trace: {trace_path}")
+
+
+def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
+    """`agentbench regression-check`: diff two runs; exit 1 on regressions."""
+    try:
+        baseline_id = (
+            args.baseline.strip()
+            if args.baseline
+            else require_current_baseline(settings.results_dir)
+        )
+    except BaselineNotSetError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        baseline = load_saved_suite_run(settings.results_dir, baseline_id)
+        new = load_saved_suite_run(settings.results_dir, args.new)
+    except SuiteRunNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    report = compute_regression(baseline, new)
+    report_path = save_regression_report(report, settings.results_dir)
+
+    # ------------------------ human-readable summary -------------------------
+    print("=" * 70)
+    print(f"Regression check: baseline={report.baseline_suite_run_id}")
+    print(f"                  new      ={report.new_suite_run_id}")
+    compared = sum(s.compared_pairs for s in report.provider_summary.values())
+    print(f"Compared {compared} pair(s) across "
+          f"{len(report.provider_summary)} common provider(s).")
+    print(f"Regressed: {report.regressed_count}   Fixed: {report.fixed_count}   "
+          f"Net change: {report.net_change:+d}")
+    if report.providers_only_in_baseline:
+        print("NOTE providers only in BASELINE (not compared): "
+              + ", ".join(report.providers_only_in_baseline))
+    if report.providers_only_in_new:
+        print("NOTE providers only in NEW run (not compared): "
+              + ", ".join(report.providers_only_in_new))
+
+    interesting = [
+        d for d in report.diffs
+        if d.status not in (TaskDiffStatus.STILL_PASSING, TaskDiffStatus.STILL_FAILING)
+    ]
+    if not interesting:
+        print("\nNo status changes: every compared pair kept its outcome.")
+    else:
+        by_status: dict[TaskDiffStatus, list[TaskDiff]] = {}
+        for diff in interesting:
+            by_status.setdefault(diff.status, []).append(diff)
+        for status in sorted(by_status, key=lambda s: s.value):
+            print(f"\n{_SECTION_TITLES[status]} ({len(by_status[status])}):")
+            for diff in by_status[status]:
+                _print_diff_line(diff, settings)
+
+    if report.provider_summary:
+        print("\nProvider breakdown:")
+        for name, summary in report.provider_summary.items():
+            print(
+                f"  {name}: compared={summary.compared_pairs} "
+                f"regressed={summary.regressed_count} fixed={summary.fixed_count} "
+                f"still_passing={summary.still_passing_count} "
+                f"still_failing={summary.still_failing_count} "
+                f"added={summary.newly_added_count} removed={summary.removed_count}"
+            )
+
+    print("=" * 70)
+    print(f"Full report saved: {report_path}")
+
+    # --------------------------- the CI gate itself --------------------------
+    if report.regressed_count > 0 and not args.allow_regressions:
+        print(
+            f"RESULT: FAIL — {report.regressed_count} regression(s) vs baseline. "
+            "(Re-run with --allow-regressions to inspect without failing.)"
+        )
+        return 1
+    if report.regressed_count > 0:
+        print(f"RESULT: {report.regressed_count} regression(s) found, but "
+              "--allow-regressions is set: reporting only, exiting 0.")
+    else:
+        print("RESULT: OK — no regressions against the baseline.")
+    return 0
+
+
+def cmd_set_baseline(args: argparse.Namespace, settings: Settings) -> int:
+    """`agentbench set-baseline`: mark a finished run as the comparison base."""
+    try:
+        result = load_saved_suite_run(settings.results_dir, args.suite_run)
+    except SuiteRunNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    pointer = set_baseline(settings.results_dir, result.suite_run_id)
+    assert get_current_baseline(settings.results_dir) == result.suite_run_id
+    print(f"Baseline set to suite run {result.suite_run_id} "
+          f"({len(result.traces)} trace(s)).")
+    print(f"Pointer file: {pointer}")
+    print("Future `regression-check --new <id>` calls will compare against it.")
+    return 0
+
+
+def register_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    """Attach `regression-check` and `set-baseline` to `agentbench`."""
+    check_parser = subparsers.add_parser(
+        "regression-check",
+        help="Compare a new suite run against a baseline; exit 1 on regressions.",
+    )
+    check_parser.add_argument(
+        "--baseline", default=None,
+        help=("Baseline suite_run_id. Omit to use the baseline marked via "
+              "`agentbench set-baseline`."),
+    )
+    check_parser.add_argument(
+        "--new", required=True,
+        help="suite_run_id of the just-finished run to compare.",
+    )
+    check_parser.add_argument(
+        "--allow-regressions", action="store_true",
+        help="Report regressions but always exit 0 (for manual inspection).",
+    )
+    check_parser.add_argument("--providers-config", default=None)
+    check_parser.add_argument("--results-dir", default=None)
+
+    baseline_parser = subparsers.add_parser(
+        "set-baseline",
+        help="Mark an existing suite run as the current regression baseline.",
+    )
+    baseline_parser.add_argument(
+        "--suite-run", required=True,
+        help="suite_run_id of a finished `compare` run.",
+    )
+    baseline_parser.add_argument("--results-dir", default=None)

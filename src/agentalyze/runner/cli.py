@@ -56,6 +56,11 @@ def _build_parser() -> argparse.ArgumentParser:
     from agentalyze.orchestration.cli import register_parsers
 
     register_parsers(subparsers)
+
+    # Phase 6: regression-gate commands, same registration pattern.
+    from agentalyze.regression.cli import register_parsers as register_regression_parsers
+
+    register_regression_parsers(subparsers)
     return parser
 
 
@@ -122,6 +127,16 @@ def main(argv: list[str] | None = None) -> int:
         from agentalyze.orchestration.cli import cmd_inspect
 
         return cmd_inspect(args, _apply_overrides(settings, args))
+
+    if args.command == "regression-check":
+        from agentalyze.regression.cli import cmd_regression_check
+
+        return cmd_regression_check(args, _apply_overrides(settings, args))
+
+    if args.command == "set-baseline":
+        from agentalyze.regression.cli import cmd_set_baseline
+
+        return cmd_set_baseline(args, _apply_overrides(settings, args))
 
     settings = _apply_overrides(settings, args)
     task = TASKS_BY_ID.get(args.task)
