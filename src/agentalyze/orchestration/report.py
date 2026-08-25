@@ -317,7 +317,7 @@ def _failures_section(result: SuiteRunResult, providers_sorted: list[str]) -> li
                 "**Почему (failure tags):** ни один из неудачных прогонов этого "
                 "провайдера не получил специфических тегов таксономии (например, "
                 "все таймауты/бюджеты без зацикливания или повторов ошибок). "
-                "Смотрите исходы выше и полные трейсы через `agentbench inspect`."
+                "Смотрите исходы выше и полные трейсы через `agentalyze inspect`."
             )
             lines.append("")
             continue

@@ -1,4 +1,4 @@
-"""`agentbench inspect` tests: tag/outcome filtering over a known suite run."""
+"""`agentalyze inspect` tests: tag/outcome filtering over a known suite run."""
 
 from __future__ import annotations
 

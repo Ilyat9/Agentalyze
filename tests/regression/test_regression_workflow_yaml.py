@@ -39,8 +39,8 @@ def test_template_declares_the_regression_job() -> None:
         return "\n".join(line.split("#")[0] for line in text.splitlines())
 
     run_commands = [strip_yaml_block_comments(step.get("run", "")) for step in steps]
-    assert any("agentbench compare" in cmd for cmd in run_commands)
-    gate_cmds = [cmd for cmd in run_commands if "agentbench regression-check" in cmd]
+    assert any("agentalyze compare" in cmd for cmd in run_commands)
+    gate_cmds = [cmd for cmd in run_commands if "agentalyze regression-check" in cmd]
     assert gate_cmds, "the template must contain a regression-check gate step"
     # The gate must be a real gate in CI: --allow-regressions belongs only to
     # local manual use, so it must not appear in any executed command line.

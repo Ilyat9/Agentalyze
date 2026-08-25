@@ -1,7 +1,7 @@
-"""CLI handlers for Phase 6: ``agentbench regression-check`` / ``set-baseline``.
+"""CLI handlers for Phase 6: ``agentalyze regression-check`` / ``set-baseline``.
 
 Not a second entry point: the parsers are registered by
-``agentalyze.runner.cli`` (the single ``agentbench`` command), same pattern
+``agentalyze.runner.cli`` (the single ``agentalyze`` command), same pattern
 as the Phase 5 orchestration commands.
 
 CI-gate contract (the reason this phase exists)::
@@ -64,7 +64,7 @@ def _print_diff_line(diff: TaskDiff, settings: Settings) -> None:
 
 
 def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
-    """`agentbench regression-check`: diff two runs; exit 1 on regressions."""
+    """`agentalyze regression-check`: diff two runs; exit 1 on regressions."""
     try:
         baseline_id = (
             args.baseline.strip()
@@ -146,7 +146,7 @@ def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_set_baseline(args: argparse.Namespace, settings: Settings) -> int:
-    """`agentbench set-baseline`: mark a finished run as the comparison base."""
+    """`agentalyze set-baseline`: mark a finished run as the comparison base."""
     try:
         result = load_saved_suite_run(settings.results_dir, args.suite_run)
     except SuiteRunNotFoundError as exc:
@@ -165,7 +165,7 @@ def cmd_set_baseline(args: argparse.Namespace, settings: Settings) -> int:
 def register_parsers(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
-    """Attach `regression-check` and `set-baseline` to `agentbench`."""
+    """Attach `regression-check` and `set-baseline` to `agentalyze`."""
     check_parser = subparsers.add_parser(
         "regression-check",
         help="Compare a new suite run against a baseline; exit 1 on regressions.",
@@ -173,7 +173,7 @@ def register_parsers(
     check_parser.add_argument(
         "--baseline", default=None,
         help=("Baseline suite_run_id. Omit to use the baseline marked via "
-              "`agentbench set-baseline`."),
+              "`agentalyze set-baseline`."),
     )
     check_parser.add_argument(
         "--new", required=True,

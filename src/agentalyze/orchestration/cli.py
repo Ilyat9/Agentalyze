@@ -1,7 +1,7 @@
-"""CLI handlers for Phase 5: ``agentbench compare`` / ``agentbench inspect``.
+"""CLI handlers for Phase 5: ``agentalyze compare`` / ``agentalyze inspect``.
 
 These are NOT a second command-line tool: the parsers are registered by
-``agentalyze.runner.cli`` (the single ``agentbench`` entry point from
+``agentalyze.runner.cli`` (the single ``agentalyze`` entry point from
 Phase 3) as additional subcommands; this module only holds their logic.
 
 Design note on health checks: ``compare`` probes every selected provider
@@ -68,7 +68,7 @@ async def _health_checks(providers: dict[str, Provider]) -> list[str]:
 
 
 def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
-    """`agentbench compare`: health-check providers, run the suite, write report."""
+    """`agentalyze compare`: health-check providers, run the suite, write report."""
     provider_names = _split_csv(args.providers)
     if not provider_names:
         print("error: --providers must name at least one configured provider",
@@ -120,7 +120,7 @@ def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
     print(f"Report:     {report_path}")
     print(f"Traces:     {len(result.traces)} individual run(s) under "
           f"{Path(settings.results_dir)}")
-    print("Inspect:    agentbench inspect --suite-run " + result.suite_run_id)
+    print("Inspect:    agentalyze inspect --suite-run " + result.suite_run_id)
     print("=" * 62)
     return 0
 
@@ -144,7 +144,7 @@ def _parse_outcome(raw: str) -> RunOutcome | None:
 
 
 def cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
-    """`agentbench inspect`: find interesting traces of one suite run."""
+    """`agentalyze inspect`: find interesting traces of one suite run."""
     try:
         result = load_suite_run(settings.results_dir, args.suite_run)
     except FileNotFoundError:
@@ -196,7 +196,7 @@ def cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
 def register_parsers(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
-    """Attach `compare` and `inspect` to the shared `agentbench` parser."""
+    """Attach `compare` and `inspect` to the shared `agentalyze` parser."""
     compare_parser = subparsers.add_parser(
         "compare",
         help="Run (selected) tasks across several providers and build a report.",

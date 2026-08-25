@@ -113,17 +113,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t agentbench-lite:ci .
+        run: docker build -t agentalyze:ci .
 
       - name: Smoke test — CLI help prints and exits cleanly
         run: |
-          OUTPUT="$(docker run --rm agentbench-lite:ci --help)"
+          OUTPUT="$(docker run --rm agentalyze:ci --help)"
           echo "$OUTPUT"
-          echo "$OUTPUT" | grep -qi "usage\|agentalyze\|agentbench"
+          echo "$OUTPUT" | grep -qi "usage\|agentalyze"
 
       - name: Smoke test — task registry loads inside the container
         run: |
-          OUTPUT="$(docker run --rm agentbench-lite:ci tasks)"
+          OUTPUT="$(docker run --rm agentalyze:ci tasks)"
           echo "$OUTPUT"
           echo "$OUTPUT" | grep -q "registered tasks"
 
@@ -163,7 +163,7 @@ jobs:
       - name: One real task, one real model, real Chromium
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: agentbench run --task nav-simple-link-01 --provider gpt-4o-mini-via-openrouter
+        run: agentalyze run --task nav-simple-link-01 --provider gpt-4o-mini-via-openrouter
 
       - name: Upload run artifacts
         if: always()

@@ -17,14 +17,14 @@
 #   0. Preflight: Docker, compose, ключ.
 #   1. Сгенерируется providers.yaml под СОТОВУЮ сеть compose: Ollama доступна
 #      агенту по http://ollama:11434/v1 (имя сервиса!), НЕ по localhost —
-#      localhost внутри контейнера agentbench указывает на сам контейнер.
+#      localhost внутри контейнера agentalyze указывает на сам контейнер.
 #   2. Поднимется сервис ollama (docker compose up -d ollama).
 #   3. Скачается модель llama3.1:8b (один раз, дальше живёт в volume).
-#   4. Прогон №1: agentbench compare на категории navigation (3 задачи,
+#   4. Прогон №1: agentalyze compare на категории navigation (3 задачи,
 #      оба провайдера) — быстрый и дешёвый срез всего suite.
 #   5. Прогон №2: тот же compare повторно — вторая точка для сравнения.
 #   6. Первый прогон помечается baseline'ом, второй сверяется с ним через
-#      agentbench regression-check (exit 1 при регрессиях — так этот режим
+#      agentalyze regression-check (exit 1 при регрессиях — так этот режим
 #      встраивается в CI).
 # =============================================================================
 
@@ -77,7 +77,7 @@ providers:
     model_name: openai/gpt-4o-mini
 
   # Локальная модель ВНУТРИ сети compose — адрес = имя сервиса ollama,
-  # а НЕ localhost (localhost внутри контейнера agentbench — это он сам).
+  # а НЕ localhost (localhost внутри контейнера agentalyze — это он сам).
   - name: ${LOCAL_PROVIDER}
     kind: ollama
     base_url: http://ollama:11434/v1
@@ -108,13 +108,13 @@ banner "Шаг 4/6 — Прогон №1: compare, категория '${CATEGOR
 
 # Маленькое подмножество suite вместо всех 18 задач: минуты, а не часы,
 # и центы, а не доллары. Полный suite — осознанное решение, а не дефолт.
-docker compose run --rm agentbench compare \
+docker compose run --rm agentalyze compare \
     --providers "${CLOUD_PROVIDER},${LOCAL_PROVIDER}" \
     --category "${CATEGORY}"
 
 banner "Шаг 5/6 — Прогон №2: тот же compare повторно"
 
-docker compose run --rm agentbench compare \
+docker compose run --rm agentalyze compare \
     --providers "${CLOUD_PROVIDER},${LOCAL_PROVIDER}" \
     --category "${CATEGORY}"
 
@@ -138,12 +138,12 @@ NEW_RUN="$(latest_suite_run 1)"
 echo "baseline: $BASELINE_RUN"
 echo "new:      $NEW_RUN"
 
-docker compose run --rm agentbench set-baseline --suite-run "$BASELINE_RUN"
+docker compose run --rm agentalyze set-baseline --suite-run "$BASELINE_RUN"
 
 # Контракт кодов выхода: 0 — регрессий нет, 1 — есть регрессии (шаг падает —
 # именно так режим встраивается в CI-гейт), 2 — проблема конфигурации.
 set +e
-docker compose run --rm agentbench regression-check \
+docker compose run --rm agentalyze regression-check \
     --baseline "$BASELINE_RUN" \
     --new "$NEW_RUN"
 GATE_STATUS=$?

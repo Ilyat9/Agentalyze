@@ -12,13 +12,13 @@
 #
 # SECRETS: nothing is baked into the image. providers.yaml only NAMES the
 # environment variables that hold API keys; real keys are passed at run time:
-#   docker run -e OPENROUTER_API_KEY=... agentbench-lite compare ...
-#   docker run --env-file .env agentbench-lite compare ...
+#   docker run -e OPENROUTER_API_KEY=... agentalyze compare ...
+#   docker run --env-file .env agentalyze compare ...
 #
 # RESULTS: run artifacts land in /app/results (the Settings default
 # ./results resolves against WORKDIR /app). Mount a volume there or they are
 # lost together with the container:
-#   docker run -v $(pwd)/results:/app/results agentbench-lite \
+#   docker run -v $(pwd)/results:/app/results agentalyze \
 #       compare --providers gpt-4o-mini-via-openrouter --category navigation
 # =============================================================================
 
@@ -91,10 +91,10 @@ USER pwuser
 # Declare the mount point for run artifacts (see header comment).
 VOLUME ["/app/results"]
 
-# `agentbench` is the console-script entry point registered in pyproject.toml
+# `agentalyze` is the console-script entry point registered in pyproject.toml
 # (Phase 3): container usage reads like CLI usage, no internal module paths:
-#   docker run --rm agentbench-lite compare --providers ... --category ...
-ENTRYPOINT ["agentbench"]
+#   docker run --rm agentalyze compare --providers ... --category ...
+ENTRYPOINT ["agentalyze"]
 
 # This is an on-demand CLI tool, NOT a long-lived service: a bare
 # `docker run` / `docker compose up` prints the help text and exits cleanly

@@ -9,7 +9,7 @@ directory structure is invented here:
    into an actionable error message.
 
 2. The baseline pointer. Which run is "the baseline" is a deliberate user
-   decision (``agentbench set-baseline``), never an automatic side effect
+   decision (``agentalyze set-baseline``), never an automatic side effect
    of finishing a run. A one-line pointer file
    ``{results_dir}/current_baseline.txt`` was chosen over a ``Settings``
    field because: it lives with the results it refers to (different results
@@ -37,7 +37,7 @@ class SuiteRunNotFoundError(RegressionStorageError):
 
 
 class BaselineNotSetError(RegressionStorageError):
-    """No baseline has been marked via `agentbench set-baseline` yet."""
+    """No baseline has been marked via `agentalyze set-baseline` yet."""
 
 
 BASELINE_POINTER_FILENAME = "current_baseline.txt"
@@ -81,7 +81,7 @@ def require_current_baseline(results_dir: Path) -> str:
         msg = (
             f"no current baseline is set ({baseline_pointer_path(results_dir)} "
             "does not exist). Either pass --baseline <suite_run_id> explicitly, "
-            "or first mark one with: agentbench set-baseline --suite-run <suite_run_id>"
+            "or first mark one with: agentalyze set-baseline --suite-run <suite_run_id>"
         )
         raise BaselineNotSetError(msg)
     return value
@@ -100,7 +100,7 @@ def load_saved_suite_run(results_dir: Path, suite_run_id: str) -> SuiteRunResult
         msg = (
             f"suite run {suite_run_id!r} not found under "
             f"{Path(results_dir)} (expected {suite_run_id}/suite_run.json). "
-            "Run `agentbench compare ...` first, or check the id with "
+            "Run `agentalyze compare ...` first, or check the id with "
             "`ls <results-dir>`."
         )
         raise SuiteRunNotFoundError(msg) from exc

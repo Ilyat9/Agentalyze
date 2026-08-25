@@ -102,7 +102,7 @@ def select_tasks(config: SuiteRunConfig) -> list[Task]:
         if unknown:
             msg = (
                 f"unknown task id(s) in SuiteRunConfig: {unknown}; "
-                "run `agentbench tasks` to list registered ids"
+                "run `agentalyze tasks` to list registered ids"
             )
             raise ValueError(msg)
         tasks = [TASKS_BY_ID[task_id] for task_id in requested]

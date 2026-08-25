@@ -7,7 +7,7 @@ Modules:
   persistence of the ``SuiteRunResult``, progress reporting;
 * ``report``       — Markdown rendering of a finished ``SuiteRunResult``,
   including the programmatically computed honest conclusion;
-* ``cli``          — ``agentbench compare`` / ``agentbench inspect``
+* ``cli``          — ``agentalyze compare`` / ``agentalyze inspect``
   handlers, registered as subcommands of the single Phase 3 entry point.
 
 What this phase deliberately does NOT contain: parallel execution

@@ -36,7 +36,7 @@ browser = [
 ]
 
 [project.scripts]
-agentbench = "agentalyze.runner.cli:main"
+agentalyze = "agentalyze.runner.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

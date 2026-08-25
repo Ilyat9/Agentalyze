@@ -32,12 +32,12 @@ Eval harness for LLM agents working with tools and a real browser. Вместо
 git clone <repo-url> && cd agentalyze
 cp providers.example.yaml providers.yaml      # укажите своих провайдеров
 
-docker build -t agentbench-lite .
+docker build -t agentalyze .
 export OPENROUTER_API_KEY=sk-or-...           # ключ только в окружении, не в образе
-agentbench_run() { docker run --rm -e OPENROUTER_API_KEY -v "$(pwd)/results:/app/results" -v "$(pwd)/providers.yaml:/app/providers.yaml:ro" agentbench-lite "$@"; }
+agentalyze_run() { docker run --rm -e OPENROUTER_API_KEY -v "$(pwd)/results:/app/results" -v "$(pwd)/providers.yaml:/app/providers.yaml:ro" agentalyze "$@"; }
 
-agentbench_run tasks                          # список всех задач
-agentbench_run run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
+agentalyze_run tasks                          # список всех задач
+agentalyze_run run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
 
 Локальная установка (если нужен исходный код и тесты):
@@ -45,7 +45,7 @@ agentbench_run run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrout
 ```bash
 pip install -e ".[dev,browser]"
 playwright install chromium
-agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
+agentalyze run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
 
 ## Архитектура
@@ -88,7 +88,7 @@ agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 Полный список с идентификаторами:
 
 ```bash
-agentbench tasks
+agentalyze tasks
 ```
 
 Как добавить новую задачу (три шага):
@@ -135,7 +135,7 @@ providers:
 
 ## Running evaluations
 
-### Одна задача — `agentbench run`
+### Одна задача — `agentalyze run`
 
 Раннер поднимает локальный HTTP-сервер фикстур и реальный Chromium, гоняет
 ReAct-цикл (модель действует через browser-инструменты: `navigate`, `click`,
@@ -143,7 +143,7 @@ ReAct-цикл (модель действует через browser-инстру�
 вызова `done(...)`, после чего задачу верифицирует программный верификатор.
 
 ```bash
-agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
+agentalyze run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
 
 Пример вывода:
@@ -178,15 +178,15 @@ results/<run_id>/screenshots/step_N.png  # скриншот страницы п�
 Полезные флаги: `--providers-config`, `--results-dir`, `--fixtures-dir`
 (переопределяют соответствующие переменные окружения).
 
-### Весь suite или подмножество — `agentbench compare`
+### Весь suite или подмножество — `agentalyze compare`
 
 ```bash
 # Весь suite двумя провайдерами:
-agentbench compare --all-tasks --providers gpt-4o-mini-via-openrouter,llama31-8b-local
+agentalyze compare --all-tasks --providers gpt-4o-mini-via-openrouter,llama31-8b-local
 
 # Подмножество: по категории, по явному списку задач:
-agentbench compare --category navigation,error_recovery --providers llama31-8b-local
-agentbench compare --tasks nav-simple-link-01,form-fill-basic-01 --providers llama31-8b-local
+agentalyze compare --category navigation,error_recovery --providers llama31-8b-local
+agentalyze compare --tasks nav-simple-link-01,form-fill-basic-01 --providers llama31-8b-local
 ```
 
 Прогон идёт строго последовательно (комбинация «задача × провайдер» за
@@ -222,8 +222,8 @@ results/<suite_run_id>/report.md        # человекочитаемый от�
 выборках). Разобрать конкретные неудачи помогает:
 
 ```bash
-agentbench inspect --suite-run <id> --tag looping          # только зацикливания
-agentbench inspect --suite-run <id> --outcome failure_verifier
+agentalyze inspect --suite-run <id> --tag looping          # только зацикливания
+agentalyze inspect --suite-run <id> --outcome failure_verifier
 ```
 
 ## Regression checks / CI integration
@@ -234,10 +234,10 @@ success rate, число шагов, латентность, стоимость.
 
 ```bash
 # Пометить известный хороший прогон как baseline (указатель хранится в results/):
-agentbench set-baseline --suite-run <suite_run_id>
+agentalyze set-baseline --suite-run <suite_run_id>
 
 # Сверить новый прогон с baseline (или любым указанным):
-agentbench regression-check --baseline <baseline_suite_run_id> --new <new_suite_run_id>
+agentalyze regression-check --baseline <baseline_suite_run_id> --new <new_suite_run_id>
 ```
 
 Коды возврата (закреплены тестами, load-bearing для CI):
@@ -263,8 +263,8 @@ agentbench regression-check --baseline <baseline_suite_run_id> --new <new_suite_
 ### Сборка и запуск
 
 ```bash
-docker build -t agentbench-lite .
-docker run --rm agentbench-lite --help          # ENTRYPOINT = agentbench
+docker build -t agentalyze .
+docker run --rm agentalyze --help          # ENTRYPOINT = agentalyze
 ```
 
 Ключевые свойства образа:
@@ -274,8 +274,8 @@ docker run --rm agentbench-lite --help          # ENTRYPOINT = agentbench
 * **Секреты не встраиваются**: `providers.yaml` называет только переменные
   окружения; реальные ключи передаются в момент запуска:
   ```bash
-  docker run --rm -e OPENROUTER_API_KEY agentbench-lite compare ...
-  # или: docker run --rm --env-file .env agentbench-lite compare ...
+  docker run --rm -e OPENROUTER_API_KEY agentalyze compare ...
+  # или: docker run --rm --env-file .env agentalyze compare ...
   ```
 * **Результаты — на volume**, иначе пропадут вместе с контейнером:
   ```bash
@@ -283,25 +283,25 @@ docker run --rm agentbench-lite --help          # ENTRYPOINT = agentbench
     -v $(pwd)/results:/app/results \
     -v $(pwd)/providers.yaml:/app/providers.yaml:ro \
     -e OPENROUTER_API_KEY \
-    agentbench-lite compare --providers gpt-4o-mini-via-openrouter --category navigation
+    agentalyze compare --providers gpt-4o-mini-via-openrouter --category navigation
   ```
 * HTML-фикстуры задач запечены в образ (`AGENTALYZE_FIXTURES_DIR=/app/fixtures`),
   поэтому `run`/`compare` работают из контейнера без дополнительных монтирований.
 
 ### docker-compose с Ollama (локальная модель vs облачная)
 
-[`docker-compose.yml`](docker-compose.yml) поднимает два сервиса: `agentbench`
+[`docker-compose.yml`](docker-compose.yml) поднимает два сервиса: `agentalyze`
 (CLI по требованию) и `ollama` с персистентным volume под модели:
 
 ```bash
 cp providers.example.yaml providers.yaml   # и укажите base_url: http://ollama:11434/v1
 docker compose up -d ollama                # сам агент при этом НЕ стартует
 docker compose run --rm ollama ollama pull llama3.1:8b
-docker compose run --rm agentbench compare \
+docker compose run --rm agentalyze compare \
     --providers gpt-4o-mini-via-openrouter,llama31-8b-local --category navigation
 ```
 
-**Важно про сеть:** внутри сети compose Ollama доступна контейнеру agentbench
+**Важно про сеть:** внутри сети compose Ollama доступна контейнеру agentalyze
 по имени сервиса — `http://ollama:11434/v1`, а **не**
 `http://localhost:11434/v1` (localhost внутри контейнера — это сам контейнер).
 Это самая частая путаница при переходе от локального запуска к

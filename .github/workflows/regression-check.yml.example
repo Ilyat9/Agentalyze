@@ -22,7 +22,7 @@
 #      commit its suite_run_id into the workflow (BASELINE_RUN_ID env below)
 #      AND make sure that run's artifacts exist in the cache restored by the
 #      "Restore baseline results" step, or re-run the baseline inside CI once
-#      and mark it: `agentbench set-baseline --suite-run <id>`.
+#      and mark it: `agentalyze set-baseline --suite-run <id>`.
 #   5. Narrow the `paths:` trigger to wherever YOUR agent prompts/logic live;
 #      the current filter is intentionally broad.
 # =============================================================================
@@ -68,7 +68,7 @@ jobs:
       # runtime of a few minutes; full suites belong to scheduled/manual runs.
       - name: Run compact benchmark subset
         run: |
-          agentbench compare \
+          agentalyze compare \
             --providers gpt-4o-mini-via-openrouter \
             --category navigation
 
@@ -85,16 +85,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: results
-          key: agentbench-baseline-v1  # bump when you adopt a new baseline
+          key: agentalyze-baseline-v1  # bump when you adopt a new baseline
 
       # ...and pin WHICH run is the baseline explicitly. Baselines change
-      # deliberately (agentbench set-baseline / set-baseline CLI), never
+      # deliberately (agentalyze set-baseline / set-baseline CLI), never
       # automatically — so the id is pinned here and bumped on purpose.
       - name: Regression gate (fails the PR when tasks got worse)
         env:
           BASELINE_RUN_ID: "00000000-0000-0000-0000-000000000000"  # <- pin yours
         run: |
-          agentbench regression-check \
+          agentalyze regression-check \
             --baseline "${BASELINE_RUN_ID}" \
             --new "${{ steps.new_run.outputs.id }}"
           # Exit code contract: 1 => regressions found => this step fails =>

@@ -18,7 +18,7 @@ accident nor a legitimate solution path. Violations return a failed
 Element resolution strategy (variant (a), with fallback)
 --------------------------------------------------------
 Observations assign deterministic ids (``e1``, ``e2``, ...) and tag the live
-DOM with ``data-agentbench-id``; tools resolve those ids exactly. If a model
+DOM with ``data-agentalyze-id``; tools resolve those ids exactly. If a model
 passes something else (a natural-language description), tools fall back to
 fuzzy lookup by role/text/label — mirroring how real browser agents degrade
 gracefully when their snapshot reference goes stale.
@@ -250,7 +250,7 @@ class ToolContext:
         """Exact resolution via the observation-assigned DOM attribute."""
         if not _ELEMENT_ID_RE.match(element_id):
             return None
-        locator = self.page.locator(f"[data-agentbench-id='{element_id}']")
+        locator = self.page.locator(f"[data-agentalyze-id='{element_id}']")
         try:
             if await locator.count() > 0:
                 return locator.first

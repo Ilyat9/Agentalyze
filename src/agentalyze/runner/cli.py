@@ -1,4 +1,4 @@
-"""Command-line entry point: ``agentbench run --task <id> --provider <name>``.
+"""Command-line entry point: ``agentalyze run --task <id> --provider <name>``.
 
 CLI toolkit choice: argparse from the standard library. The project carries
 neither click nor typer as dependencies and this is the only command-line
@@ -21,7 +21,7 @@ from agentalyze.tasks.registry import TASKS, TASKS_BY_ID
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentbench",
+        prog="agentalyze",
         description="Agentalyze benchmark harness (see ROADMAP.md for phases).",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -52,7 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("tasks", help="List registered tasks and exit.")
 
     # Phase 5: comparison commands live in agentalyze.orchestration.cli but
-    # are registered HERE so `agentbench` stays the single entry point.
+    # are registered HERE so `agentalyze` stays the single entry point.
     from agentalyze.orchestration.cli import register_parsers
 
     register_parsers(subparsers)
@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = _apply_overrides(settings, args)
     task = TASKS_BY_ID.get(args.task)
     if task is None:
-        print(f"error: unknown task {args.task!r}; run `agentbench tasks` to list ids.",
+        print(f"error: unknown task {args.task!r}; run `agentalyze tasks` to list ids.",
               file=sys.stderr)
         return 2
 

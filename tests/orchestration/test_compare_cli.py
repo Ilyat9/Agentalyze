@@ -1,4 +1,4 @@
-"""`agentbench compare` CLI tests that don't need any real model.
+"""`agentalyze compare` CLI tests that don't need any real model.
 
 The critical automation-safety property: a provider failing its health
 check aborts the command BEFORE the suite run starts — no interactive

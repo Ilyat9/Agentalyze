@@ -10,7 +10,7 @@ practical reason: the raw a11y snapshot is unidirectional — there is no way
 to map a node from it back to a Playwright ``Locator``, which the
 click/type/extract tools require. Our scan assigns deterministic ids
 (``e1``, ``e2``, ... in document order for the current step) *and* tags the
-live DOM elements with ``data-agentbench-id``, giving tools exact resolution.
+live DOM elements with ``data-agentalyze-id``, giving tools exact resolution.
 
 Ids are intentionally NOT stable across steps: the DOM may change between
 actions, so the agent must re-read the fresh observation each step rather
@@ -41,8 +41,8 @@ _TAGGING_JS = """
   // Drop ids from previous observation passes: otherwise a stale id could
   // resolve to both an old (now-hidden) element and a fresh visible one.
   document
-    .querySelectorAll('[data-agentbench-id]')
-    .forEach((el) => el.removeAttribute('data-agentbench-id'));
+    .querySelectorAll('[data-agentalyze-id]')
+    .forEach((el) => el.removeAttribute('data-agentalyze-id'));
 
   const INTERACTIVE = new Set([
     'link', 'button', 'textbox', 'combobox', 'checkbox', 'radio',
@@ -125,7 +125,7 @@ _TAGGING_JS = """
     if (dominated) continue;
     seen.push(el);
     const id = 'e' + (items.length + 1);
-    el.setAttribute('data-agentbench-id', id);
+    el.setAttribute('data-agentalyze-id', id);
     const role = roleOf(el);
     items.push({
       id,
@@ -186,7 +186,7 @@ def render_observation(data: dict[str, Any]) -> str:
 async def build_observation(page: Page) -> PageObservation:
     """Scan the current page and return the compact observation for the model.
 
-    Side effect: scanned elements get a ``data-agentbench-id`` attribute so
+    Side effect: scanned elements get a ``data-agentalyze-id`` attribute so
     tools can resolve ``element_id`` values exactly.
     """
     # Hash BEFORE tagging: the injected attributes must not affect the hash.

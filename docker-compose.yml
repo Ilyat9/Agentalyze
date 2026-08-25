@@ -3,9 +3,9 @@
 #
 # Самый частый сценарий использования проекта. Поднимает два сервиса:
 #
-#   agentbench — образ из Dockerfile (CLI-инструмент). НЕ долгоживущий демон:
+#   agentalyze — образ из Dockerfile (CLI-инструмент). НЕ долгоживущий демон:
 #                вызывается по требованию как
-#                    docker compose run --rm agentbench compare --providers ...
+#                    docker compose run --rm agentalyze compare --providers ...
 #                Дефолтная команда ниже просто печатает --help и завершается,
 #                чтобы привычный `docker compose up` не выглядел сломанным.
 #
@@ -25,16 +25,16 @@
 #   cp providers.example.yaml providers.yaml   # поменяйте base_url у ollama!
 #   docker compose up -d ollama
 #   docker compose run --rm ollama ollama pull llama3.1:8b
-#   docker compose run --rm agentbench compare \
+#   docker compose run --rm agentalyze compare \
 #       --providers gpt-4o-mini-via-openrouter,llama31-8b-local \
 #       --category navigation
 # Готовый скрипт всего сценария: examples/compare_local_vs_cloud.sh
 # =============================================================================
 
 services:
-  agentbench:
+  agentalyze:
     build: .
-    image: agentbench-lite:latest
+    image: agentalyze:latest
     # CLI по требованию: печатает справку и завершается (см. шапку выше).
     command: ["--help"]
     depends_on:
@@ -62,7 +62,7 @@ services:
       - ollama_data:/root/.ollama
     ports:
       # Проброс наружу — чтобы той же моделью можно было пользоваться и с
-      # хоста (http://localhost:11434). Внутри сети agentbench ходит по имени
+      # хоста (http://localhost:11434). Внутри сети agentalyze ходит по имени
       # сервиса, этот порт для этого не нужен.
       - "11434:11434"
 
