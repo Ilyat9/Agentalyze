@@ -112,22 +112,26 @@ def _resolve_api_key(entry: ProviderConfigEntry, config_path: Path) -> str:
 
 def _build_inner(entry: ProviderConfigEntry, config_path: Path) -> Provider:
     api_key = _resolve_api_key(entry, config_path)
-    common = {
-        "name": entry.name,
-        "model_name": entry.model_name,
-        "timeout_seconds": entry.timeout_seconds,
-        "health_check_timeout_seconds": entry.health_check_timeout_seconds,
-    }
     if entry.kind == "ollama":
         return OllamaProvider(
+            name=entry.name,
+            model_name=entry.model_name,
+            timeout_seconds=entry.timeout_seconds,
+            health_check_timeout_seconds=entry.health_check_timeout_seconds,
             base_url=entry.base_url or OLLAMA_DEFAULT_BASE_URL,
             api_key=api_key,
-            **common,
         )
     if entry.base_url is None:
         msg = f"provider '{entry.name}' ({entry.kind}): 'base_url' is required"
         raise ProviderConfigError(msg)
-    return OpenAICompatibleProvider(base_url=entry.base_url, api_key=api_key, **common)
+    return OpenAICompatibleProvider(
+        name=entry.name,
+        model_name=entry.model_name,
+        timeout_seconds=entry.timeout_seconds,
+        health_check_timeout_seconds=entry.health_check_timeout_seconds,
+        base_url=entry.base_url,
+        api_key=api_key,
+    )
 
 
 def load_providers(config_path: Path) -> dict[str, Provider]:

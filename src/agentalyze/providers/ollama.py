@@ -16,12 +16,16 @@ only adjusts what genuinely differs:
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from agentalyze.providers.openai_compatible import OpenAICompatibleProvider
 
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_API_KEY = "ollama"  # placeholder; Ollama does not check keys locally
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _root_from_base_url(base_url: str) -> str:
@@ -67,7 +71,16 @@ class OllamaProvider(OpenAICompatibleProvider):
             response.raise_for_status()
             tags = response.json()
             installed = tags.get("models") or [] if isinstance(tags, dict) else []
-        except Exception:  # noqa: BLE001 - health check must not crash callers
+        except Exception as exc:  # noqa: BLE001 - health check must not crash callers
+            # Swallowed by contract (never raises), but logged with the cause:
+            # an "Ollama unreachable" verdict must be explainable after the fact.
+            _LOGGER.warning(
+                "health check failed for provider %r (%s): %s: %s",
+                self.name,
+                url,
+                type(exc).__name__,
+                exc,
+            )
             return False
         wanted = self._model_name
         for entry in installed:

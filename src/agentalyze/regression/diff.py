@@ -138,6 +138,7 @@ def _build_diff(
         steps_delta = len(new.steps) - len(baseline.steps)
         latency_delta = new.wall_clock_seconds - baseline.wall_clock_seconds
     anchor = baseline if baseline is not None else new
+    assert anchor is not None  # guaranteed by the guard above; narrows for mypy
     return TaskDiff(
         task_id=anchor.task_id,
         provider_name=anchor.provider_name,

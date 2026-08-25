@@ -31,6 +31,7 @@ from agentalyze.regression.storage import (
     save_regression_report,
     set_baseline,
 )
+from agentalyze.runner.trace import RunOutcome
 
 _SECTION_TITLES = {
     TaskDiffStatus.REGRESSED: "REGRESSED",
@@ -40,7 +41,7 @@ _SECTION_TITLES = {
 }
 
 
-def _outcome_label(outcome) -> str:
+def _outcome_label(outcome: RunOutcome | None) -> str:
     return outcome.value if outcome is not None else "<absent>"
 
 

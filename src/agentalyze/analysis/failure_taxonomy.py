@@ -149,7 +149,8 @@ def _acting_steps(steps: list[StepEvent]) -> list[StepEvent]:
 def _declared_give_up(acting: list[StepEvent]) -> bool:
     """True when the model called ``done(success=false)`` at least once."""
     return any(
-        step.tool_call.name == DONE_TOOL_NAME
+        step.tool_call is not None
+        and step.tool_call.name == DONE_TOOL_NAME
         and not step.tool_call.arguments.get("success")
         for step in acting
     )
@@ -158,7 +159,8 @@ def _declared_give_up(acting: list[StepEvent]) -> bool:
 def _first_successful_done_step(acting: list[StepEvent]) -> int | None:
     """Step number of the first ``done(success=true)``, if any."""
     for step in acting:
-        if step.tool_call.name == DONE_TOOL_NAME and step.tool_call.arguments.get("success"):
+        call = step.tool_call
+        if call is not None and call.name == DONE_TOOL_NAME and call.arguments.get("success"):
             return step.step_number
     return None
 
@@ -187,11 +189,11 @@ def _referenced_unseen_element(acting: list[StepEvent]) -> bool:
     """
     for step in acting:
         call = step.tool_call
-        if call.name == DONE_TOOL_NAME:
+        if call is None or call.name == DONE_TOOL_NAME:
             continue
         referenced = {
             value.strip()
-            for value in call.arguments.values()  # type: ignore[union-attr]
+            for value in call.arguments.values()
             if isinstance(value, str) and _ELEMENT_ID_RE.match(value.strip())
         }
         if not referenced:
@@ -293,7 +295,11 @@ def classify_failure(
       swallowed by the "no failure tags on success" rule.
     """
     acting = _acting_steps(trace.steps)
-    signatures = [_signature(step.tool_call.name, step.tool_call.arguments) for step in acting]
+    signatures = [
+        _signature(call.name, call.arguments)
+        for step in acting
+        if (call := step.tool_call) is not None
+    ]
 
     gave_up = _declared_give_up(acting)
 
@@ -316,9 +322,14 @@ def classify_failure(
     # Rule 2 is restricted to verifier failures on purpose: a budget-exhausted
     # read-only run may be a legitimate waiting strategy that ran out of time,
     # which is a different diagnosis.
-    unknown_tools = {step.tool_call.name for step in acting} - KNOWN_TOOL_NAMES
+    unknown_tools = {
+        call.name
+        for step in acting
+        if (call := step.tool_call) is not None
+    } - KNOWN_TOOL_NAMES
     acted_without_mutation = bool(acting) and not any(
-        step.tool_call.name in STATE_CHANGING_TOOLS for step in acting
+        (call := step.tool_call) is not None and call.name in STATE_CHANGING_TOOLS
+        for step in acting
     )
     if unknown_tools or (
         acted_without_mutation and trace.outcome is RunOutcome.FAILURE_VERIFIER

@@ -16,11 +16,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+#: Actions the programmatic fixture driver knows how to perform.
+ReferenceAction = Literal["fill", "click", "select", "check"]
+
 
 class ReferenceStep(BaseModel):
     """One programmatic interaction step used only by fixture validation."""
 
-    action: Literal["fill", "click", "select", "check"]
+    action: ReferenceAction
     selector: str
     value: str | None = Field(
         default=None,
@@ -37,7 +40,9 @@ class TaskReference(BaseModel):
     steps: list[ReferenceStep]
 
 
-def _ref(success_selector: str, *steps: tuple[str, str, str | None]) -> TaskReference:
+def _ref(
+    success_selector: str, *steps: tuple[ReferenceAction, str, str | None]
+) -> TaskReference:
     """Small factory keeping the registry readable."""
     return TaskReference(
         success_selector=success_selector,

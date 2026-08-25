@@ -12,6 +12,7 @@ no SDK type ever leaks to callers.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any
 
@@ -30,6 +31,8 @@ from agentalyze.providers.base import (
     ToolCall,
     ToolSpec,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 #: Role names are identical between our ChatMessage and the OpenAI wire format;
 #: validated explicitly so an unexpected role fails fast instead of silently.
@@ -238,7 +241,18 @@ class OpenAICompatibleProvider:
                 max_tokens=1,
                 timeout=self._health_check_timeout_seconds,
             )
-        except Exception:  # noqa: BLE001 - health check must not crash callers
+        except Exception as exc:  # noqa: BLE001 - health check must not crash callers
+            # Swallowed by contract (never raises), but NOT silently: an
+            # "unavailable provider" verdict without a logged cause is
+            # undebuggable — the transient failure mode is otherwise
+            # indistinguishable from a misconfigured endpoint.
+            _LOGGER.warning(
+                "health check failed for provider %r (%s): %s: %s",
+                self.name,
+                self._model_name,
+                type(exc).__name__,
+                exc,
+            )
             return False
         return True
 

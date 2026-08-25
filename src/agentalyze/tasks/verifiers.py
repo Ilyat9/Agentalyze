@@ -13,8 +13,8 @@ be added without touching existing code.
 from __future__ import annotations
 
 import re
-from datetime import date
-from typing import Protocol, runtime_checkable
+from datetime import date, datetime
+from typing import Literal, Protocol, runtime_checkable
 
 from playwright.async_api import Page
 
@@ -54,7 +54,10 @@ def normalize_date(raw: str) -> date | None:
     formats = ("%Y-%m-%d", "%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%m/%d/%Y", "%d.%m.%Y")
     for fmt in formats:
         try:
-            return date.strptime(text, fmt)
+            # datetime.strptime, NOT date.strptime: `date` gained a strptime
+            # classmethod only in Python 3.14, and the project supports 3.11+.
+            # Naive on purpose: dates come verbatim from fixture page text.
+            return datetime.strptime(text, fmt).date()  # noqa: DTZ007
         except ValueError:
             continue
     return None
@@ -107,7 +110,7 @@ class ElementPresentVerifier:
     async def verify(self, page: Page) -> VerificationResult:
         locator = page.locator(self.selector)
         try:
-            state = "visible" if self.visible else "attached"
+            state: Literal["visible", "attached"] = "visible" if self.visible else "attached"
             await locator.first.wait_for(state=state, timeout=2_000)
         except Exception:  # noqa: BLE001 - any wait failure simply means "not present"
             return VerificationResult(

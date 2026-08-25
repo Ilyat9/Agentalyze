@@ -97,7 +97,7 @@ def _core_metrics(traces: list[RunTrace], pricing: PricingConfig | None) -> Cate
     costs = [_run_cost(trace, pricing) for trace in traces]
     total_cost, avg_cost = summarize_costs(costs)
 
-    failure_outcomes = Counter(
+    failure_outcomes: Counter[RunOutcome] = Counter(
         trace.outcome for trace in traces if trace.outcome is not RunOutcome.SUCCESS
     )
     tag_counts: Counter[FailureTag] = Counter()

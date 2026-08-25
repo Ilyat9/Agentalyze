@@ -89,7 +89,11 @@ class RetryingProvider:
                         max_tokens=max_tokens,
                     )
         except RetryError as exc:  # defensive; reraise=True should prevent this
-            raise exc.last_attempt.exception() from exc
+            last = exc.last_attempt.exception()
+            if last is None:
+                msg = "unreachable: retrier exhausted without a recorded exception"
+                raise AssertionError(msg) from exc
+            raise last from exc
         msg = "unreachable: retrier exhausted without returning or raising"
         raise AssertionError(msg)  # pragma: no cover
 
