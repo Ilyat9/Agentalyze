@@ -327,8 +327,8 @@ pytest -m e2e_live                                                # реальн
 pytest                                                            # = первый вариант (addopts)
 ```
 
-Линтеры: `ruff check .`; mypy настроен strict в `pyproject.toml`, но текущий
-код ему ещё не соответствует — статус см. в `KNOWN_LIMITATIONS.md`.
+Линтеры: `ruff check .` и `mypy src` (strict, как в CI) — оба должны проходить
+чисто.
 
 Структура репозитория:
 
