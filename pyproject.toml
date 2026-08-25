@@ -34,6 +34,9 @@ browser = [
     "playwright>=1.45",
 ]
 
+[project.scripts]
+agentbench = "agentalyze.runner.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -43,8 +46,9 @@ asyncio_mode = "auto"
 markers = [
     "browser: requires a real Chromium install (pip install -e \".[browser]\" && playwright install chromium); excluded from the default run — opt in with `pytest -m browser`",
     "requires_ollama: requires a real Ollama server on localhost:11434; excluded from the default run — opt in with `pytest -m requires_ollama`",
+    "e2e_live: full end-to-end run with a REAL model + real Chromium; the slowest, rarest test — opt in with `pytest -m e2e_live`",
 ]
-addopts = "-m 'not browser and not requires_ollama'"
+addopts = "-m 'not browser and not requires_ollama and not e2e_live'"
 
 [tool.ruff]
 line-length = 100
