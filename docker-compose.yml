@@ -1,0 +1,70 @@
+# =============================================================================
+# Agentalyze — локальный сценарий «облачная модель vs локальная Ollama».
+#
+# Самый частый сценарий использования проекта. Поднимает два сервиса:
+#
+#   agentbench — образ из Dockerfile (CLI-инструмент). НЕ долгоживущий демон:
+#                вызывается по требованию как
+#                    docker compose run --rm agentbench compare --providers ...
+#                Дефолтная команда ниже просто печатает --help и завершается,
+#                чтобы привычный `docker compose up` не выглядел сломанным.
+#
+#   ollama     — официальный образ Ollama; скачанные модели сохраняются в
+#                именованном volume ollama_data между перезапусками.
+#
+# ВАЖНО про сеть (частая путаница при переходе от локального запуска к
+# контейнеризированному): внутри сети compose сервис ollama доступен агенту
+# НЕ по localhost, а ПО ИМЕНИ СЕРВИСА:
+#
+#       base_url: http://ollama:11434/v1     # правильно для docker compose
+#       # base_url: http://localhost:11434/v1  # работает только БЕЗ Docker
+#
+# Настройте providers.yaml именно с этим адресом (см. README, раздел Docker).
+#
+# Быстрый старт:
+#   cp providers.example.yaml providers.yaml   # поменяйте base_url у ollama!
+#   docker compose up -d ollama
+#   docker compose run --rm ollama ollama pull llama3.1:8b
+#   docker compose run --rm agentbench compare \
+#       --providers gpt-4o-mini-via-openrouter,llama31-8b-local \
+#       --category navigation
+# Готовый скрипт всего сценария: examples/compare_local_vs_cloud.sh
+# =============================================================================
+
+services:
+  agentbench:
+    build: .
+    image: agentbench-lite:latest
+    # CLI по требованию: печатает справку и завершается (см. шапку выше).
+    command: ["--help"]
+    depends_on:
+      - ollama
+    environment:
+      # Ключи облачных провайдеров пробрасываются из окружения хоста (или из
+      # --env-file). В образ они НЕ встроены; providers.yaml только называет
+      # переменную. Пустое значение по умолчанию — чтобы compose не падал,
+      # когда нужны только локальные модели.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      # Результаты прогонов переживают уничтожение контейнеров.
+      - ./results:/app/results
+      # Конфиг провайдеров читается из корня репозитория. Файл должен
+      # существовать ДО запуска (cp providers.example.yaml providers.yaml),
+      # иначе Docker смонтирует вместо него пустую директорию.
+      - ./providers.yaml:/app/providers.yaml:ro
+      # Альтернатива пробросу переменных окружения — файл с секретами:
+      # - ./.env:/app/.env:ro
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      # Загруженные модели (могут быть гигабайты) не скачиваются заново.
+      - ollama_data:/root/.ollama
+    ports:
+      # Проброс наружу — чтобы той же моделью можно было пользоваться и с
+      # хоста (http://localhost:11434). Внутри сети agentbench ходит по имени
+      # сервиса, этот порт для этого не нужен.
+      - "11434:11434"
+
+volumes:
+  ollama_data:
