@@ -1,38 +1,148 @@
 # Agentalyze
 
-Eval harness for LLM agents working with tools and a real browser. Instead of
-generic benchmarks, Agentalyze focuses on a task suite of concrete agentic web
-tasks (form filling, fact extraction with confidence, tool-error recovery) and
-pinpoints *where exactly* an agent breaks — not just the success rate.
+Eval harness for LLM agents working with tools and a real browser. Вместо
+абстрактных бенчмарков — suite из 18 конкретных агентных веб-задач
+(заполнение форм, извлечение фактов с уверенностью, восстановление после
+ошибок) на локальных HTML-фикстурах и реальном Chromium. Главный вопрос —
+не «какой success rate», а **где именно ломается агент**: неверный выбор
+инструмента, галлюцинация элемента, зацикливание, исчерпание шагов.
 
-> **Проект в разработке, реализуется поэтапно. Текущая фаза: 5 — сравнение
-> моделей и честные отчёты завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
+Ключевые свойства:
 
-## Требования
+* **Честность важнее демо**: успех решает программный верификатор по
+  финальному DOM, а не самооценка модели; каждый шаг трассируется в JSON —
+  весь контекст, ответ модели, вызванный инструмент, результат действия,
+  хэш DOM и скриншот.
+* **Сравнение моделей на равных**: одни и те же задачи, одинаковые browser-инструменты,
+  несколько провайдеров (любой OpenAI-совместимый API или локальная Ollama)
+  в одном прогоне с отчётом по метрикам, цене и латентности.
+* **Regression-режим для CI**: детект деградации между двумя прогонами
+  с числовыми кодами выхода, пригодными для гейта в pull request.
 
-- Python **3.11+** (минимальная зафиксированная версия — см. `pyproject.toml`)
+Статус: **все фазы (0–7) завершены** — см. [`ROADMAP.md`](ROADMAP.md).
+Известные границы применимости честно собраны в
+[`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
 
-## Установка
+## Быстрый старт
+
+Самый короткий путь к первому результату — Docker (Chromium уже внутри образа,
+ставить Python и системные библиотеки не нужно):
+
+```bash
+git clone <repo-url> && cd agentalyze
+cp providers.example.yaml providers.yaml      # укажите своих провайдеров
+
+docker build -t agentbench-lite .
+export OPENROUTER_API_KEY=sk-or-...           # ключ только в окружении, не в образе
+agentbench_run() { docker run --rm -e OPENROUTER_API_KEY -v "$(pwd)/results:/app/results" -v "$(pwd)/providers.yaml:/app/providers.yaml:ro" agentbench-lite "$@"; }
+
+agentbench_run tasks                          # список всех задач
+agentbench_run run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
+```
+
+Локальная установка (если нужен исходный код и тесты):
 
 ```bash
 pip install -e ".[dev,browser]"
-playwright install chromium   # браузерные бинарники ставятся отдельно от Playwright
+playwright install chromium
+agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
 
-## Запуск одной задачи (Фаза 3)
+## Архитектура
 
-Раннер берёт одну задачу из реестра, одного настроенного провайдера,
-поднимает локальный сервер фикстур и реальный Chromium, гоняет ReAct-цикл
-(модель действует через browser-инструменты: `navigate`, `click`,
-`type_text`, `select_option`, `submit_form`, `extract_text`, `wait_for`) до
-вызова `done(...)`, после чего задачу верифицирует программный верификатор
-из Фазы 1. Полный трейс выполнения сохраняется в JSON.
+Проект слоистый; каждый слой Фазы строил поверх предыдущих и ничего о них
+не предполагал сверх явных интерфейсов:
+
+```
+ tasks (Фаза 1)        providers (Фаза 2)         runner (Фаза 3)
+ реестр 18 задач   +   OpenAI-совместимый /   →   реальный Chromium, ReAct-цикл,
+ HTML-фикстуры,        Ollama, retry,              browser-инструменты, трейс
+ верификаторы          health-check
+        │                    │                        │
+        └────────┬───────────┴───────────┬────────────┘
+                 ▼                       ▼
+          Task + Provider ──→ RunTrace (results/<run_id>/trace.json + screenshots/)
+                                        │
+                     analysis (Фаза 4)  ▼   failure-таксономия, агрегаты,
+                                        │   калибровка уверенности, цены
+                                        ▼
+                     orchestration (Фаза 5) compare/inspect → report.md
+                                        │
+                                        ▼
+                     regression (Фаза 6)    regression-check vs baseline
+                                        │    (exit 0/1/2 — CI-гейт)
+                                        ▼
+                                  Report / CI gate
+```
+
+Поток данных одной строкой: `Task + Provider → RunTrace → Metrics → Report`.
+Аналитические слои (Фазы 4–6) **ничего не запускают** — они читают готовые
+трейсы; поэтому всё это покрывается быстрыми тестами без браузера.
+
+## Task suite
+
+**18 задач, 6 категорий**, каждая категория целится в конкретный режим отказа:
+`navigation`, `form_fill`, `extraction`, `multi_step`, `error_recovery`,
+`distractor` (заманивалки: элементы, похожие на цель, но ею не являющиеся).
+
+Полный список с идентификаторами:
 
 ```bash
-# 1. Провайдеры описываются в providers.yaml (см. раздел Providers ниже)
-cp providers.example.yaml providers.yaml   # и отредактируйте под себя
+agentbench tasks
+```
 
-# 2. Прогон одной задачи одним провайдером
+Как добавить новую задачу (три шага):
+
+1. **HTML-фикстура** — `fixtures/<категория>/<имя>.html`. Самодостаточный
+   файл без внешних зависимостей; корректность фикстур проверяется
+   автоматически тестом `tests/tasks/test_fixtures_valid.py`.
+2. **Запись в реестре** — `src/agentalyze/tasks/registry.py`: `id`
+   (kebab-case), категория, заголовок, дословная инструкция агенту,
+   относительный путь фикстуры, сложность (`easy`/`medium`/`hard`) и
+   `verifier_id`.
+3. **Верификатор** — переиспользуйте существующий из
+   `src/agentalyze/tasks/verifiers.py` (`VERIFIERS`: маркер на странице,
+   значение в тексте, подсчёт элементов, дата и т.п.) или напишите новый
+   там же. Верификатор смотрит только на финальный DOM — никогда на шаги агента.
+
+Задача становится доступной всем командам CLI сразу после записи в реестр.
+
+## Providers
+
+Провайдеры описываются в `providers.yaml` (шаблон —
+[`providers.example.yaml`](providers.example.yaml)). Файл **не содержит
+секретов**: он лишь называет переменную окружения с ключом, так что его можно
+коммитить. Поддерживаются два типа:
+
+```yaml
+providers:
+  - name: gpt-4o-mini-via-openrouter
+    kind: openai_compatible            # любой /v1/chat/completions API:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env_var: OPENROUTER_API_KEY
+    model_name: openai/gpt-4o-mini
+
+  - name: llama31-8b-local
+    kind: ollama                       # локальная Ollama, ключ не нужен
+    model_name: llama3.1:8b            # base_url по умолчанию localhost:11434/v1
+```
+
+Если переменная с ключом не установлена, загрузка падает с понятной ошибкой.
+Каждый провайдер автоматически обёрнут в retry (tenacity: до 3 попыток с
+экспоненциальным backoff, только для сетевых/rate-limit ошибок; параметры —
+секция `retry` per-provider). Стоимость считается опционально по таблице цен
+([`pricing.example.yaml`](pricing.example.yaml)); без неё cost = N/A.
+
+## Running evaluations
+
+### Одна задача — `agentbench run`
+
+Раннер поднимает локальный HTTP-сервер фикстур и реальный Chromium, гоняет
+ReAct-цикл (модель действует через browser-инструменты: `navigate`, `click`,
+`type_text`, `select_option`, `submit_form`, `extract_text`, `wait_for`) до
+вызова `done(...)`, после чего задачу верифицирует программный верификатор.
+
+```bash
 agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
 
@@ -44,414 +154,216 @@ Task:       form-fill-basic-01 (Fill the contact form)
 Provider:   gpt-4o-mini-via-openrouter
 Outcome:    success
 Steps:      6
-Tokens:     prompt=3120 completion=210 cost=N/A
+Tokens:     prompt=3120 completion=210 cost=$0.0011
 Verifier:   Success marker '#success-marker' is present and visible.
 Wall time:  14.2s
 Trace:      9f0c.../trace.json
 ==============================================================
 ```
 
-Полезные флаги: `--providers-config PATH`, `--results-dir PATH`,
-`--fixtures-dir PATH` (переопределяют соответствующие переменные окружения);
-`agentbench tasks` печатает все id задач. Код выхода — `0` только при
-`SUCCESS`.
-
-Артефакты прогона складываются в `AGENTALYZE_RESULTS_DIR` (по умолчанию
-`./results`):
+Код выхода — `0` только при успехе. Артефакты складываются в
+`AGENTALYZE_RESULTS_DIR` (по умолчанию `./results`):
 
 ```
 results/<run_id>/trace.json              # полный машинночитаемый трейс (RunTrace)
 results/<run_id>/screenshots/step_N.png  # скриншот страницы после каждого действия
 ```
 
-Трейс самодостаточен: для каждого шага он хранит весь контекст, отправленный
-модели, её ответ, вызванный инструмент, результат действия, sha256-хэш DOM
-после шага и путь к скриншоту. Итог классифицируется в `RunOutcome`
-(`success`, `failure_verifier`, `failure_max_steps`, `failure_timeout`,
-`failure_provider_error`, `failure_tool_error`, `failure_crash`) — на этих
-сырых трейсах строятся аналитические Фазы 4–6.
+Трейс самодостаточен: для каждого шага хранится весь контекст, отправленный
+модели, её ответ, вызванный инструмент, результат действия, sha256-хэш DOM и
+путь к скриншоту. Итог классифицируется в `RunOutcome`: `success`,
+`failure_verifier`, `failure_max_steps`, `failure_timeout`,
+`failure_provider_error`, `failure_tool_error`, `failure_crash`.
 
-## Analysis (Фаза 4)
+Полезные флаги: `--providers-config`, `--results-dir`, `--fixtures-dir`
+(переопределяют соответствующие переменные окружения).
 
-Аналитический слой (`src/agentalyze/analysis/`) читает готовые `RunTrace`-объекты
-и превращает их в структурированные метрики. Он ничего не запускает (ни браузер,
-ни модель) и ничего не рисует — читаемые отчёты и сравнение моделей — это
-Фаза 5 (см. раздел «Comparing providers» ниже); здесь только вычисления, всё
-покрывается быстрыми unit-тестами (`pytest tests/analysis/`, доли секунды).
-
-Что считается:
-
-* **Failure-таксономия** (`failure_taxonomy.py`) — `classify_failure(trace)`
-  присваивает неудачному прогону один или несколько тегов из `FailureTag`:
-  неверный выбор инструмента, галлюцинация element_id, зацикливание,
-  исчерпание бюджета «в движении» vs «в ступоре», проигнорированная ошибка
-  инструмента, подозрение на преждевременное `done(success=true)`, осознанный
-  отказ. Каждый тег — конкретная задокументированная эвристика с настраиваемым
-  порогом, не «на глаз».
-* **Агрегированные метрики** (`metrics.py`) — `compute_metrics(traces)`
-  (трейсы одного провайдера): success rate, разбивка по исходам и по
-  failure-тегам, стоимость, латентность p50/p95 вызова модели, среднее число
-  шагов и рекурсивная разбивка по категориям задач (`by_category`) — видно,
-  где именно модель проваливает («сильна в NAVIGATION, тонет в ERROR_RECOVERY»).
-* **Калибровка уверенности** (`calibration.py`) —
-  `compute_calibration_report(traces)` собирает пары «заявленная confidence из
-  done(...) против фактического вердикта верификатора», бинует [0,1] и считает
-  ECE. При малом числе непустых бинов отчёт явно предупреждает о низкой
-  статистической значимости.
-* **Стоимость** (`pricing.py` + `cost.py`) — перевод токенов в USD по
-  редактируемой таблице цен: скопируйте
-  [`pricing.example.yaml`](pricing.example.yaml) в `pricing.yaml`. Цены НЕ
-  захардкожены в коде — проверяйте актуальные цены у своего провайдера перед
-  финансовыми решениями. Провайдер без записи в таблице даёт «стоимость
-  неизвестна» (`None`); локальный Ollama с `free: true` даёт честные `$0.0`.
-
-Пример:
-
-```python
-from pathlib import Path
-
-from agentalyze.analysis import classify_failure, compute_calibration_report, compute_metrics, load_pricing
-from agentalyze.runner.trace import load_trace
-
-traces = [load_trace(p) for p in Path("results").glob("*/trace.json")]
-
-for t in traces:
-    if not t.success:
-        print(t.task_id, [tag.value for tag in classify_failure(t)])
-
-metrics = compute_metrics(traces, pricing=load_pricing(Path("pricing.yaml")))
-print(metrics.success_rate, metrics.p95_latency_seconds)
-print({cat.value: m.success_rate for cat, m in metrics.by_category.items()})
-
-calibration = compute_calibration_report(traces)
-print(calibration.ece, calibration.low_statistics_warning)
-```
-
-## Comparing providers (Фаза 5)
-
-Оркестратор (`src/agentalyze/orchestration/`) прогоняет **весь** набор задач
-(или его подмножество) **несколькими** провайдерами последовательно — одна
-комбинация «задача × провайдер» за другой, — сохраняя каждый трейс на диск по
-мере выполнения (сбой в середине долгого прогона не теряет уже готовые
-результаты) и печатая прогресс `[i/N]`. Параллельное выполнение в этой фазе
-намеренно не реализовано: `max_concurrent > 1` отклоняется с явной ошибкой.
+### Весь suite или подмножество — `agentbench compare`
 
 ```bash
-# Прогон двух провайдеров на двух категориях задач
-agentbench compare --providers gpt-4o-mini-via-openrouter,llama3.1-8b-local \
-    --category form_fill,error_recovery
+# Весь suite двумя провайдерами:
+agentbench compare --all-tasks --providers gpt-4o-mini-via-openrouter,llama31-8b-local
 
-# Или на всех 18 задачах сразу
-agentbench compare --providers gpt-4o-mini-via-openrouter,llama3.1-8b-local --all-tasks
-
-# Найти и открыть конкретные интересные трейсы готового прогона
-agentbench inspect --suite-run <suite_run_id> --tag looping
-agentbench inspect --suite-run <suite_run_id> --outcome failure_verifier
+# Подмножество: по категории, по явному списку задач:
+agentbench compare --category navigation,error_recovery --providers llama31-8b-local
+agentbench compare --tasks nav-simple-link-01,form-fill-basic-01 --providers llama31-8b-local
 ```
 
-Перед стартом каждый выбранный провайдер проходит `health_check()`: если
-провайдер недоступен, команда завершается явной ошибкой, не начиная заведомо
-мёртвый прогон (никаких интерактивных промптов — CLI пригоден для автоматизации).
-
-Артефакты прогона:
+Прогон идёт строго последовательно (комбинация «задача × провайдер» за
+комбинацией), каждый трейс сохраняется на диск сразу — сбой в середине не
+теряет готовые результаты. Перед стартом каждый провайдер проходит
+health-check; нездоровый провайдер прерывает команду с явной ошибкой.
+По завершении пишутся:
 
 ```
-results/<suite_run_id>/suite_run.json   # весь SuiteRunResult (все трейсы + метрики)
-results/<suite_run_id>/report.md        # Markdown-отчёт сравнения
-results/<run_id>/trace.json             # отдельные трейсы, как в Фазе 3
+results/<suite_run_id>/suite_run.json   # машинночитаемая сводка + все трейсы
+results/<suite_run_id>/report.md        # человекочитаемый отчёт
 ```
 
-Отчёт содержит шесть секций: метаданные прогона, сводную таблицу провайдеров,
-разбивку по категориям задач, failure breakdown с человеческим объяснением
-тегов, калибровку уверенности (ECE печатается только если статистика
-достаточна — иначе явно написано «недостаточно данных») и **честный итоговый
-вывод**, вычисляемый программно из чисел конкретного прогона: он прямо называет
-случаи, когда «лучший в таблице» — не лучший выбор. Фрагмент отчёта:
+Пример фрагмента `report.md`:
 
 ```markdown
 ## Summary
 
 | Provider | Tasks | Success rate | Avg cost / task | Avg steps | p50 latency | p95 latency |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `gpt-4o-mini-via-openrouter` | 3 | 66.7% | $0.0120 | 2.3 | 1.20s | 3.10s |
-| `llama3.1-8b-local`          | 3 | 33.3% | $0.0080 | 4.7 | 6.90s | 9.40s |
+| `gpt-4o-mini-via-openrouter` | 18 | 83% | $0.0042 | 6.1 | 2.8s | 11.4s |
+| `llama31-8b-local`           | 18 | 44% | $0.0000 | 11.7 | 5.9s | 24.3s |
 
-## Honest conclusion
+> Стоимость `$0.0000` — это честный ноль локальной модели, а не «неизвестная цена».
 
-- Провайдер **gpt-4o-mini-via-openrouter** даёт наивысший общий success rate
-  (66.7%), но провайдер **llama3.1-8b-local** стоит на 33.3% дешевле при
-  success rate 33.3%. Выбор зависит от того, что важнее для конкретного случая
-  использования: максимальное качество (gpt-4o-mini-via-openrouter) или
-  минимальная цена (llama3.1-8b-local).
+## Breakdown by task category
+### NAVIGATION (3 task(s))
+...
 ```
 
-Категории с малым числом задач (< 5) помечаются в отчёте как малая выборка, а
-не подаются с той же уверенностью, что и наполненные категории.
-
-## Regression checks in CI (Фаза 6)
-
-Фаза 6 добавляет сравнение двух прогонов **во времени**: вот baseline-прогон,
-вот новый прогон после изменения промпта/логики агента — что изменилось?
-Само выполнение задач не изменилось (`run_task`/`run_suite` из Фаз 3/5
-используются как есть) — это новый слой поверх уже сохранённых результатов.
-
-### Команды
+Отчёт также содержит разбивку отказов по тегам таксономии, калибровку
+уверенности и секцию «Honest conclusion» (включая предупреждения о малых
+выборках). Разобрать конкретные неудачи помогает:
 
 ```bash
-# Явное указание обоих прогонов:
-agentbench regression-check --baseline <suite_run_id> --new <suite_run_id>
+agentbench inspect --suite-run <id> --tag looping          # только зацикливания
+agentbench inspect --suite-run <id> --outcome failure_verifier
+```
 
-# Без --baseline: используется baseline, помеченный ранее:
+## Regression checks / CI integration
+
+Regression-режим (Фаза 6) сравнивает два suite-прогона по задачам и провайдерам:
+success rate, число шагов, латентность, стоимость. Статусы различий на задачу:
+`regressed`, `fixed`, `unchanged`, `newly_added`, `removed`.
+
+```bash
+# Пометить известный хороший прогон как baseline (указатель хранится в results/):
 agentbench set-baseline --suite-run <suite_run_id>
-agentbench regression-check --new <suite_run_id>
 
-# Посмотреть diff, не прерывая скрипт ненулевым кодом возврата:
-agentbench regression-check --baseline <id> --new <id> --allow-regressions
+# Сверить новый прогон с baseline (или любым указанным):
+agentbench regression-check --baseline <baseline_suite_run_id> --new <new_suite_run_id>
 ```
 
-Baseline хранится в простом файле-указателе `{results_dir}/current_baseline.txt`
-и обновляется **только явно** командой `set-baseline` — никогда автоматически
-после прогона. Baseline — это осознанное решение пользователя: «текущее
-состояние — новая точка отсчёта».
+Коды возврата (закреплены тестами, load-bearing для CI):
 
-### Сравнение по парам (task, provider)
+| Код | Значение |
+| --- | --- |
+| `0` | регрессий нет (или передан `--allow-regressions`) |
+| `1` | есть регрессии → шаг CI должен упасть |
+| `2` | проблема конфигурации (неизвестный run id, baseline не задан) |
 
-Трейсы сопоставляются по паре `(task_id, provider_name)`. Сравниваются только
-общие провайдеры двух прогонов; провайдеры, присутствующие лишь в одном из
-них, явно перечисляются в отчёте (`providers_only_in_baseline` /
-`providers_only_in_new`) — несоответствие не замалчивается. Шесть статусов
-для каждой пары:
+Отчёт сохраняется в `results/<new_suite_run_id>/regression_report.json`.
 
-| Статус | Значение |
-| ------ | -------- |
-| `still_passing` | SUCCESS → SUCCESS |
-| `still_failing` | FAILURE_* → FAILURE_* (любой вид неудачи в обоих прогонах) |
-| `regressed` | SUCCESS → FAILURE_* |
-| `fixed` | FAILURE_* → SUCCESS |
-| `newly_added` | задача есть в новом прогоне, отсутствовала в baseline (набор вырос) |
-| `removed` | задача была в baseline, исчезла из нового прогона |
+Готовый шаблон workflow для pull request —
+[`.github/workflows/regression-check.yml.example`](.github/workflows/regression-check.yml.example).
+Расширение `.example` намеренное: job требует реального платного провайдера,
+поэтому он активируется вручную (`git mv ... .yml`, добавить секрет с API-ключом,
+зафиксировать baseline run id) — см. комментарии в самом файле. Автоматический CI
+проекта (`.github/workflows/ci.yml`) платных вызовов не делает никогда.
 
-Полный машинночитаемый отчёт сохраняется в
-`{results_dir}/{new_suite_run_id}/regression_report.json`.
 
-### Коды возврата (CI-gate)
+## Docker
 
-| Код | Когда |
-| --- | ----- |
-| `0` | Регрессий нет (или передан `--allow-regressions`) |
-| `1` | Есть хотя бы одна регрессия (`regressed_count > 0`) и флаг `--allow-regressions` не передан |
-| `2` | Проблема использования: неизвестный id прогона, baseline не установлен |
-
-Это делает команду пригодной как gate в CI: шаг workflow падает, если задачи
-стали проходить хуже:
-
-```yaml
-- run: agentbench regression-check --new "$NEW_RUN_ID"   # exit 1 => PR красный
-```
-
-### Активация GitHub Actions workflow
-
-В репозитории лежит **шаблон** `.github/workflows/regression-check.yml.example`.
-Расширение `.example` выбрано намеренно: workflow требует реального доступа к
-LLM-провайдеру и секретов API-ключей, которых у типичного форкнутого
-репозитория нет — поэтому он никогда не запустится сам по себе. Чтобы
-активировать:
-
-1. Переименуйте файл: `git mv .github/workflows/regression-check.yml.example .github/workflows/regression-check.yml`.
-2. Добавьте API-ключ в секреты репозитория (Settings → Secrets and variables → Actions),
-   например `OPENROUTER_API_KEY`, и укажите его в `env:` шага compare.
-3. Закоммитьте реальный `providers.yaml` (по образцу `providers.example.yaml`)
-   и подставьте имя провайдера в `--providers`.
-4. Зафиксируйте baseline: подставьте известный `BASELINE_RUN_ID` в env шага gate
-   и обеспечьте наличие артефактов этого прогона (кеш/перезапуск в CI), либо
-   один раз выполните `agentbench set-baseline --suite-run <id>` внутри CI.
-5. Сузьте триггер `paths:` под реальные места промптов/логики вашего агента —
-   текущий фильтр нарочно широкий.
-6. В CI запускайте компактное подмножество suite (`--category` с 1–2
-   категориями или короткий список задач): regression-check должен занимать
-   минуты, а не часы; полные прогоны — для scheduled/manual запусков.
-
-Подробные комментарии — прямо в теле `.yml.example`.
-
-## Запуск тестов
+### Сборка и запуск
 
 ```bash
-pytest                # быстрый прогон: без тестов, требующих Chromium или Ollama
-pytest -m browser     # интеграционные тесты фикстур, верификаторов и раннера (нужен Chromium)
-pytest -m requires_ollama  # интеграционный тест провайдера с реальным Ollama
-pytest -m e2e_live    # самый редкий: реальная модель + реальный браузер на одной easy-задаче
+docker build -t agentbench-lite .
+docker run --rm agentbench-lite --help          # ENTRYPOINT = agentbench
 ```
 
-Тесты, требующие реального Chromium, помечены маркером `browser` и исключены
-из прогона по умолчанию (для них нужно `pip install -e ".[browser]" &&
-playwright install chromium`).
+Ключевые свойства образа:
 
-Линтинг:
+* База — официальный образ Playwright для Python: Chromium и все его системные
+  библиотеки уже внутри, ничего доустанавливать не нужно.
+* **Секреты не встраиваются**: `providers.yaml` называет только переменные
+  окружения; реальные ключи передаются в момент запуска:
+  ```bash
+  docker run --rm -e OPENROUTER_API_KEY agentbench-lite compare ...
+  # или: docker run --rm --env-file .env agentbench-lite compare ...
+  ```
+* **Результаты — на volume**, иначе пропадут вместе с контейнером:
+  ```bash
+  docker run --rm \
+    -v $(pwd)/results:/app/results \
+    -v $(pwd)/providers.yaml:/app/providers.yaml:ro \
+    -e OPENROUTER_API_KEY \
+    agentbench-lite compare --providers gpt-4o-mini-via-openrouter --category navigation
+  ```
+* HTML-фикстуры задач запечены в образ (`AGENTALYZE_FIXTURES_DIR=/app/fixtures`),
+  поэтому `run`/`compare` работают из контейнера без дополнительных монтирований.
+
+### docker-compose с Ollama (локальная модель vs облачная)
+
+[`docker-compose.yml`](docker-compose.yml) поднимает два сервиса: `agentbench`
+(CLI по требованию) и `ollama` с персистентным volume под модели:
 
 ```bash
-ruff check .
+cp providers.example.yaml providers.yaml   # и укажите base_url: http://ollama:11434/v1
+docker compose up -d ollama                # сам агент при этом НЕ стартует
+docker compose run --rm ollama ollama pull llama3.1:8b
+docker compose run --rm agentbench compare \
+    --providers gpt-4o-mini-via-openrouter,llama31-8b-local --category navigation
 ```
 
-## Task suite
+**Важно про сеть:** внутри сети compose Ollama доступна контейнеру agentbench
+по имени сервиса — `http://ollama:11434/v1`, а **не**
+`http://localhost:11434/v1` (localhost внутри контейнера — это сам контейнер).
+Это самая частая путаница при переходе от локального запуска к
+контейнеризированному. Готовый скрипт всего сценария «облако vs локальная
+модель», включая regression-check на двух прогонах:
+[`examples/compare_local_vs_cloud.sh`](examples/compare_local_vs_cloud.sh).
 
-Набор из **18 агентных веб-задач** в 6 категориях (по 3 задачи на категорию,
-с нарастающей сложностью easy → medium → hard):
-
-| Категория        | Что проверяет                                                              |
-| ---------------- | -------------------------------------------------------------------------- |
-| `navigation`     | поиск и переход по ссылке/меню/табу                                        |
-| `form_fill`      | заполнение и отправка форм (включая клиентскую валидацию и зависимые поля) |
-| `extraction`     | извлечение факта + явная самооценка уверенности агента                     |
-| `multi_step`     | последовательность из 3+ действий на разных состояниях одной фикстуры      |
-| `error_recovery` | восстановление после намеренно сломанного элемента/страницы                |
-| `distractor`     | выбор правильного элемента среди визуально похожих неправильных            |
-
-Каждая задача — декларативное описание (`Task`), локальная HTML-фикстура с
-DOM-маркером успеха и программный верификатор, который смотрит только на
-финальное состояние страницы. Никакого агента и LLM в этой фазе нет —
-раннер появится в Фазе 3.
-
-Посмотреть реестр задач:
+## Development
 
 ```bash
-python -c "from agentalyze.tasks.registry import TASKS; \
-  [print(t.id, '|', t.category.value, '|', t.difficulty, '|', t.title) for t in TASKS]"
+python3.11+ -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,browser]"
+playwright install chromium
 ```
 
-Проверить, что все фикстуры технически решаемы (программно, без агента):
+Тесты разделены маркерами (заданы в `pyproject.toml`):
 
 ```bash
-pytest -m browser
-# или: python -m agentalyze.tasks.validate_fixtures
+pytest -m "not browser and not requires_ollama and not e2e_live"  # быстрые: доли секунды… минуты
+pytest -m browser                                                 # реальный Chromium
+pytest -m requires_ollama                                         # живой Ollama на :11434
+pytest -m e2e_live                                                # реальная модель + Chromium (редко!)
+pytest                                                            # = первый вариант (addopts)
 ```
 
-Слои чётко разделены: публичное описание задачи (`agentalyze.tasks.models.Task`)
-не содержит селекторов; служебные reference-селекторы для валидации живут в
-`agentalyze.tasks.reference` и **никогда не передаются агенту**.
+Линтеры: `ruff check .`; mypy настроен strict в `pyproject.toml`, но текущий
+код ему ещё не соответствует — статус см. в `KNOWN_LIMITATIONS.md`.
 
-## Providers
+Структура репозитория:
 
-Единый интерфейс вызова LLM (`agentalyze.providers`) скрывает конкретные
-бэкенды за протоколом `Provider` с двумя методами: `chat_completion()`
-(возвращает `CompletionResult` с токенами, латентностью и `finish_reason`) и
-`health_check()` (лёгкая проверка доступности, никогда не кидает исключений).
-ReAct-цикла и агента здесь нет — это «телефонная трубка» для раннера Фазы 3.
-
-Поддерживаются два типа провайдеров:
-
-| Тип                | Что это                                                                 |
-| ------------------ | ----------------------------------------------------------------------- |
-| `openai_compatible`| Любой API с контрактом `/v1/chat/completions`: OpenAI, OpenRouter, Together, Groq, ... — одна реализация, разные `base_url`/ключи |
-| `ollama`           | Локальный Ollama через его OpenAI-совместимый endpoint; тонкая обёртка над `openai_compatible` |
-
-### Настройка через providers.yaml
-
-Скопируйте шаблон и поправьте под себя:
-
-```bash
-cp providers.example.yaml providers.yaml
+```
+src/agentalyze/
+├── config.py            # Settings (pydantic-settings, env AGENTALYZE_*)
+├── tasks/               # Фаза 1: реестр 18 задач, фикстур-сервер, верификаторы
+├── providers/           # Фаза 2: openai_compatible + ollama, factory, retry
+├── runner/              # Фаза 3: ReAct-цикл, browser-инструменты, трейс, CLI
+├── analysis/            # Фаза 4: failure-таксономия, метрики, калибровка, цены
+├── orchestration/       # Фаза 5: suite-runner, report.md, compare/inspect
+└── regression/          # Фаза 6: diff прогонов, baseline, regression-check
+tests/                   # pytest; маркеры browser / requires_ollama / e2e_live
+fixtures/                # локальные HTML-фикстуры по категориям
+examples/                # исполняемый end-to-end сценарий (Docker + Ollama)
+.github/workflows/ci.yml # lint / test-fast / test-browser / docker-build
+providers.example.yaml   # шаблон конфигурации провайдеров (без секретов)
+pricing.example.yaml     # шаблон таблицы цен для расчёта стоимости
 ```
 
-Формат — список именованных провайдеров; путь к файлу задаётся настройкой
-`AGENTALYZE_PROVIDERS_CONFIG_PATH` (по умолчанию `./providers.yaml`):
+Конфигурация — переменные окружения с префиксом `AGENTALYZE_` (+ опциональный
+`.env`): `AGENTALYZE_FIXTURES_DIR` (`./fixtures`), `AGENTALYZE_RESULTS_DIR`
+(`./results`), `AGENTALYZE_PROVIDERS_CONFIG_PATH` (`./providers.yaml`),
+`AGENTALYZE_LOG_LEVEL` (`INFO`).
 
-```yaml
-providers:
-  - name: gpt-4o-mini-via-openrouter   # уникальное человекочитаемое имя
-    kind: openai_compatible            # или "ollama"
-    base_url: https://openrouter.ai/api/v1
-    api_key_env_var: OPENROUTER_API_KEY  # имя env-переменной, НЕ сам ключ!
-    model_name: openai/gpt-4o-mini
-    # timeout_seconds: 120              # опционально
-    # retry:                            # опциональные override'ы retry
-    #   max_attempts: 3
-    #   initial_wait_seconds: 1.0
-    #   multiplier: 2.0
-    #   max_wait_seconds: 30.0
+## Roadmap / Status
 
-  - name: llama31-8b-local
-    kind: ollama
-    model_name: llama3.1:8b             # base_url по умолчанию http://localhost:11434/v1
-```
-
-**Про секреты.** В YAML хранится только *имя переменной окружения* с ключом
-(`api_key_env_var`), сам ключ читается в рантайме. Поэтому оба файла безопасно
-коммитятся: `providers.example.yaml` — шаблон в репозитории;
-`providers.yaml`, созданный пользователем, секретов не содержит по схеме и
-может быть закоммичен при желании (если вы всё же положите туда ключ напрямую,
-добавьте его в `.gitignore` сами). Если нужная env-переменная не установлена,
-`load_providers()` падает с понятной ошибкой вида
-`Provider 'X' requires environment variable 'Y', which is not set`.
-
-Загрузка:
-
-```python
-import asyncio
-from pathlib import Path
-
-from agentalyze.providers import ChatMessage, load_providers
-
-providers = load_providers(Path("providers.yaml"))
-result = asyncio.run(
-    providers["gpt-4o-mini-via-openrouter"].chat_completion(
-        [ChatMessage(role="user", content="ping")]
-    )
-)
-print(result.message.content, result.total_tokens)
-```
-
-### Retry и ошибки
-
-Ошибки провайдера образуют иерархию `ProviderError` и делятся на:
-
-* **retryable** — `ProviderConnectionError`, `ProviderTimeoutError`,
-  `ProviderRateLimitError`;
-* **non-retryable** — `ProviderAuthError`, `ProviderInvalidResponseError`
-  (например, невалидный JSON в tool call arguments), `ProviderConfigError`.
-
-Каждый загруженный провайдер автоматически обёрнут в `RetryingProvider`
-(на `tenacity`): до 3 попыток с экспоненциальным backoff (~1 c база, ×2,
-потолок 30 c, джиттер), только для retryable-ошибок. Параметры настраиваются
-per-provider через секцию `retry` в `providers.yaml`. Исключения SDK наружу
-не утекают — вызывающий код работает только с подклассами `ProviderError`.
-
-### Интеграционный тест с реальным Ollama
-
-Тесты, требующие запущенного Ollama на `localhost:11434`, помечены маркером
-`requires_ollama` и исключены из прогона по умолчанию:
-
-```bash
-pytest -m requires_ollama
-```
-
-## Конфигурация
-
-Настройки читаются из переменных окружения с префиксом `AGENTALYZE_`
-(см. `src/agentalyze/config.py`):
-
-| Переменная                            | По умолчанию       | Описание                                    |
-| ------------------------------------- | ------------------ | ------------------------------------------- |
-| `AGENTALYZE_FIXTURES_DIR`             | `./fixtures`       | Директория с локальными HTML-фикстурами     |
-| `AGENTALYZE_RESULTS_DIR`              | `./results`        | Куда складываются результаты прогонов       |
-| `AGENTALYZE_LOG_LEVEL`                | `INFO`             | `DEBUG` / `INFO` / `WARNING` / `ERROR`      |
-| `AGENTALYZE_PROVIDERS_CONFIG_PATH`    | `./providers.yaml` | YAML-конфиг именованных LLM-провайдеров (см. раздел «Providers») |
-
-Также поддерживается опциональный файл `.env` в корне проекта.
-
-## Структура
-
-- `src/agentalyze/` — исходный код пакета
-  - `src/agentalyze/tasks/` — реестр задач, модели, сервер фикстур, верификаторы
-  - `src/agentalyze/providers/` — единый интерфейс LLM-провайдеров, factory, retry
-  - `src/agentalyze/runner/` — ReAct-цикл, browser-инструменты, наблюдение страницы, формат трейса (`trace.py`), CLI (`cli.py`)
-  - `src/agentalyze/analysis/` — failure-таксономия, агрегированные метрики, калибровка уверенности, цены/стоимость (Фаза 4)
-  - `src/agentalyze/orchestration/` — прогон suite несколькими провайдерами, Markdown-отчёты сравнения, подкоманды CLI `compare`/`inspect` (Фаза 5)
-  - `src/agentalyze/regression/` — diff двух прогонов (`diff.py`), baseline-указатель и загрузка прогонов (`storage.py`), подкоманды CLI `regression-check`/`set-baseline` (Фаза 6)
-- `tests/` — тесты (`pytest`)
-- `fixtures/` — локальные HTML-фикстуры для задач (по подпапкам-категориям)
-- `providers.example.yaml` — шаблон конфигурации LLM-провайдеров
-- `pricing.example.yaml` — шаблон таблицы цен для расчёта стоимости прогонов
+Проект построен поэтапно, каждая фаза — рабочий шаг; история плана сохранена
+в [`ROADMAP.md`](ROADMAP.md). **Все фазы 0–7 завершены**: конфигурация,
+task-suite, provider layer, раннер с реальным Chromium, метрики и
+failure-таксономия, сравнение моделей и отчёты, regression-режим, упаковка
+(Docker, CI, документация). Честный список границ применимости и известных
+упрощений — [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
 
 ## Лицензия
 
 MIT — см. [`LICENSE.md`](LICENSE.md).
+
