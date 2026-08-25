@@ -5,8 +5,8 @@ generic benchmarks, Agentalyze focuses on a task suite of concrete agentic web
 tasks (form filling, fact extraction with confidence, tool-error recovery) and
 pinpoints *where exactly* an agent breaks — not just the success rate.
 
-> **Проект в разработке, реализуется поэтапно. Текущая фаза: 2 — provider
-> layer завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
+> **Проект в разработке, реализуется поэтапно. Текущая фаза: 3 — раннер
+> (ReAct-цикл, трейсы) завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
 
 ## Требования
 
@@ -15,23 +15,69 @@ pinpoints *where exactly* an agent breaks — not just the success rate.
 ## Установка
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,browser]"
+playwright install chromium   # браузерные бинарники ставятся отдельно от Playwright
 ```
 
-Опциональная группа `browser` ставит Playwright, но **не** браузерные бинарники —
-они устанавливаются отдельной командой (появится в Фазе 3):
+## Запуск одной задачи (Фаза 3)
+
+Раннер берёт одну задачу из реестра, одного настроенного провайдера,
+поднимает локальный сервер фикстур и реальный Chromium, гоняет ReAct-цикл
+(модель действует через browser-инструменты: `navigate`, `click`,
+`type_text`, `select_option`, `submit_form`, `extract_text`, `wait_for`) до
+вызова `done(...)`, после чего задачу верифицирует программный верификатор
+из Фазы 1. Полный трейс выполнения сохраняется в JSON.
 
 ```bash
-pip install -e ".[browser]"
-playwright install chromium
+# 1. Провайдеры описываются в providers.yaml (см. раздел Providers ниже)
+cp providers.example.yaml providers.yaml   # и отредактируйте под себя
+
+# 2. Прогон одной задачи одним провайдером
+agentbench run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```
+
+Пример вывода:
+
+```
+==============================================================
+Task:       form-fill-basic-01 (Fill the contact form)
+Provider:   gpt-4o-mini-via-openrouter
+Outcome:    success
+Steps:      6
+Tokens:     prompt=3120 completion=210 cost=N/A
+Verifier:   Success marker '#success-marker' is present and visible.
+Wall time:  14.2s
+Trace:      9f0c.../trace.json
+==============================================================
+```
+
+Полезные флаги: `--providers-config PATH`, `--results-dir PATH`,
+`--fixtures-dir PATH` (переопределяют соответствующие переменные окружения);
+`agentbench tasks` печатает все id задач. Код выхода — `0` только при
+`SUCCESS`.
+
+Артефакты прогона складываются в `AGENTALYZE_RESULTS_DIR` (по умолчанию
+`./results`):
+
+```
+results/<run_id>/trace.json              # полный машинночитаемый трейс (RunTrace)
+results/<run_id>/screenshots/step_N.png  # скриншот страницы после каждого действия
+```
+
+Трейс самодостаточен: для каждого шага он хранит весь контекст, отправленный
+модели, её ответ, вызванный инструмент, результат действия, sha256-хэш DOM
+после шага и путь к скриншоту. Итог классифицируется в `RunOutcome`
+(`success`, `failure_verifier`, `failure_max_steps`, `failure_timeout`,
+`failure_provider_error`, `failure_tool_error`, `failure_crash`) — на этих
+сырых трейсах строятся аналитические Фазы 4–6.
 
 ## Запуск тестов
 
 ```bash
 pytest                # быстрый прогон: без тестов, требующих Chromium или Ollama
-pytest -m browser     # интеграционные тесты фикстур и верификаторов (нужен Chromium)
+pytest -m browser     # интеграционные тесты фикстур, верификаторов и раннера (нужен Chromium)
 pytest -m requires_ollama  # интеграционный тест провайдера с реальным Ollama
+pytest -m e2e_live    # самый редкий: реальная модель + реальный браузер на одной easy-задаче
 ```
 
 Тесты, требующие реального Chromium, помечены маркером `browser` и исключены
@@ -195,6 +241,7 @@ pytest -m requires_ollama
 - `src/agentalyze/` — исходный код пакета
   - `src/agentalyze/tasks/` — реестр задач, модели, сервер фикстур, верификаторы
   - `src/agentalyze/providers/` — единый интерфейс LLM-провайдеров, factory, retry
+  - `src/agentalyze/runner/` — ReAct-цикл, browser-инструменты, наблюдение страницы, формат трейса (`trace.py`), CLI (`cli.py`)
 - `tests/` — тесты (`pytest`)
 - `fixtures/` — локальные HTML-фикстуры для задач (по подпапкам-категориям)
 - `providers.example.yaml` — шаблон конфигурации LLM-провайдеров
