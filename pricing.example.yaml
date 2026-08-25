@@ -1,0 +1,23 @@
+# Named LLM providers pricing table for Agentalyze (Phase 4).
+#
+# Copy this file to `pricing.yaml` and adjust. WARNING: verify current prices
+# with your provider before using these numbers for real financial decisions —
+# prices change frequently and any example values here WILL go stale. The
+# harness never invents prices: a provider missing from this table simply
+# yields an "unknown cost" (None), never $0.
+#
+# Per-1k-token USD prices:
+#   prompt_price_per_1k_usd      / completion_price_per_1k_usd
+# For providers with no real monetary cost (local Ollama) declare them
+# explicitly free — that yields 0.0 ("known free"), which is different from
+# None ("unknown"):
+
+pricing:
+  gpt-4o-mini-via-openrouter:
+    # EXAMPLE ONLY: gpt-4o-mini list prices at time of writing
+    # ($0.15 / $0.60 per 1M tokens). Check current prices yourself!
+    prompt_price_per_1k_usd: 0.00015
+    completion_price_per_1k_usd: 0.0006
+
+  llama31-8b-local:
+    free: true   # local Ollama: no monetary cost, counted as exactly $0.0
