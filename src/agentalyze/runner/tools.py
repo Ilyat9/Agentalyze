@@ -310,6 +310,14 @@ async def do_navigate(ctx: ToolContext, url: str) -> ToolResult:
     if not allowed:
         return ToolResult(success=False, output=f"Navigation blocked: {resolved}")
     await ctx.page.goto(resolved, wait_until="load", timeout=_NAVIGATE_TIMEOUT_MS)
+    # Defense in depth: goto() follows redirects, so re-verify where the
+    # browser actually landed; a same-origin URL must never move us off-site.
+    landed_ok, landed_reason = ctx.check_url(ctx.page.url)
+    if not landed_ok:
+        return ToolResult(
+            success=False,
+            output=f"Navigation left the allowed site after a redirect: {landed_reason}",
+        )
     title = await ctx.page.title()
     return ToolResult(success=True, output=f"Navigated to {ctx.page.url} (title: {title!r}).")
 
