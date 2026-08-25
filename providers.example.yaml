@@ -1,0 +1,35 @@
+# Named LLM providers for Agentalyze.
+#
+# Copy this file to `providers.yaml` and adjust. The file contains NO secrets:
+# API keys are read at runtime from the environment variable named in
+# `api_key_env_var`, so both files are safe to keep under version control
+# (`providers.yaml` is committed only if you choose to; see README).
+#
+# kind: "openai_compatible" — any OpenAI-compatible /v1/chat/completions API
+#       (OpenAI, OpenRouter, Together, Groq, ...). Requires `base_url` and
+#       `api_key_env_var`.
+# kind: "ollama" — local Ollama via its OpenAI-compatible endpoint.
+#       `base_url` defaults to http://localhost:11434/v1, no key needed.
+#
+# Optional per-provider retry overrides (all values are examples):
+#   retry:
+#     max_attempts: 3           # total attempts, >= 1
+#     initial_wait_seconds: 1.0 # exponential backoff base
+#     multiplier: 2.0           # backoff multiplier (> 1)
+#     max_wait_seconds: 30.0    # cap for a single wait
+#     jitter_seconds: 1.0       # random jitter added on top
+
+providers:
+  - name: gpt-4o-mini-via-openrouter
+    kind: openai_compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env_var: OPENROUTER_API_KEY
+    model_name: openai/gpt-4o-mini
+    # timeout_seconds: 120          # per-request timeout (seconds)
+    # health_check_timeout_seconds: 5
+
+  - name: llama31-8b-local
+    kind: ollama
+    model_name: llama3.1:8b
+    # base_url: http://localhost:11434/v1
+    # api_key_env_var: not needed for local Ollama

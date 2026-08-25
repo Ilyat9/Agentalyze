@@ -4,8 +4,9 @@ A single ``Settings`` model loaded from environment variables with the
 ``AGENTALYZE_`` prefix (for example ``AGENTALYZE_LOG_LEVEL``), with sensible
 defaults so the package works out of the box.
 
-Intentionally minimal: fields about LLM providers, task suites, Docker, etc.
-will be added in later phases when their context is known.
+Intentionally minimal: fields are added phase by phase when their context is
+known (``providers_config_path`` appeared in Phase 2 together with the
+provider layer).
 """
 
 from pathlib import Path
@@ -47,6 +48,15 @@ class Settings(BaseSettings):
     log_level: LogLevel = Field(
         default="INFO",
         description="Logging level. Case-insensitive, normalized to upper case.",
+    )
+    providers_config_path: Path = Field(
+        default=Path("./providers.yaml"),
+        description=(
+            "Path to the named-providers YAML file (see providers.example.yaml). "
+            "The file itself contains no secrets — only names of environment "
+            "variables holding API keys. Loading is done by "
+            "agentalyze.providers.factory.load_providers."
+        ),
     )
 
     @field_validator("fixtures_dir", "results_dir", mode="after")

@@ -17,13 +17,20 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
 
     deselected = [rep for rep in terminalreporter.stats.get("deselected", [])]
     browser_deselected = [rep for rep in deselected if rep.keywords.get("browser")]
-    if not browser_deselected:
-        return
-
-    terminalreporter.section("hint", yellow=True)
-    terminalreporter.line(
-        f"{len(browser_deselected)} collected test(s) were deselected because they "
-        "require a real Chromium (marker 'browser' is excluded from the default run).\n"
-        "Run them explicitly:  pytest -m browser\n"
-        "(requires: pip install -e '.[browser]' && playwright install chromium)"
-    )
+    ollama_deselected = [rep for rep in deselected if rep.keywords.get("requires_ollama")]
+    if browser_deselected:
+        terminalreporter.section("hint", yellow=True)
+        terminalreporter.line(
+            f"{len(browser_deselected)} collected test(s) were deselected because they "
+            "require a real Chromium (marker 'browser' is excluded from the default run).\n"
+            "Run them explicitly:  pytest -m browser\n"
+            "(requires: pip install -e '.[browser]' && playwright install chromium)"
+        )
+    if ollama_deselected:
+        terminalreporter.section("hint", yellow=True)
+        terminalreporter.line(
+            f"{len(ollama_deselected)} collected test(s) were deselected because they "
+            "require a real Ollama server on localhost:11434 (marker 'requires_ollama' "
+            "is excluded from the default run).\n"
+            "Run them explicitly:  pytest -m requires_ollama"
+        )
