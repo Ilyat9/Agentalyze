@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- distractor-forms-03: two visually identical registration forms side by side.
+     The left form is inert: <fieldset disabled> + aria-disabled="true", so filling
+     and "submitting" it never changes state. Only the right (working) form,
+     whose fields are #real-name / #real-email and whose submit is #real-submit,
+     reaches the terminal state.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Event Registration</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:2rem}
+  .forms{display:flex;gap:3rem}
+  fieldset{border:none;padding:0;margin:0}
+  label{display:block;margin-top:.5rem}
+  button{margin-top:.75rem}
+  .note{color:#888;font-size:.85rem}
+</style>
+</head>
+<body>
+<h1>Event Registration</h1>
+<p class="note">Please complete your registration using the working form.</p>
+
+<div class="forms">
+  <section aria-label="Registration copy">
+    <!-- Decoy form: identical markup, but entirely disabled -->
+    <fieldset id="decoy-fieldset" disabled aria-disabled="true">
+      <legend>Registration</legend>
+      <label>Name <input id="decoy-name" type="text"></label>
+      <label>Email <input id="decoy-email" type="text"></label>
+      <button id="decoy-submit" type="button">Register</button>
+    </fieldset>
+  </section>
+
+  <section aria-label="Registration">
+    <!-- Working form -->
+    <form id="real-form">
+      <fieldset>
+        <legend>Registration</legend>
+        <label>Name <input id="real-name" type="text"></label>
+        <label>Email <input id="real-email" type="text"></label>
+        <button id="real-submit" type="submit">Register</button>
+      </fieldset>
+    </form>
+  </section>
+</div>
+
+<div id="success-marker" data-success="true" hidden>Registration confirmed. Check your inbox.</div>
+
+<script>
+  document.getElementById('real-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    document.querySelector('.forms').hidden = true;
+    document.querySelector('.note').hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+  // The decoy button cannot even fire: its fieldset is disabled. Any scripted
+  // click on it is ignored, so agents fighting the decoy never reach the marker.
+  document.getElementById('decoy-submit').addEventListener('click', function () {
+    /* unreachable while disabled — deliberate dead end */
+  });
+</script>
+</body>
+</html>

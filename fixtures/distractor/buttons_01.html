@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- distractor-buttons-01: several buttons look like submit actions, but only
+     #real-submit (inside the form) advances the state. Decoys:
+       * "Submit" with a real disabled attribute (inert),
+       * "Submit form" which silently RESETS the payload field,
+       * an icon-only button with an aria-label but no visible text.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Payload Console</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:2rem}
+  label{display:block;margin:.5rem 0}
+  button{margin-right:.75rem;padding:.35rem .9rem}
+  .toolbar{margin-top:1rem}
+</style>
+</head>
+<body>
+<h1>Payload Console</h1>
+<form id="payload-form">
+  <label>Payload <input id="payload" type="text"></label>
+
+  <!-- Real submit button: visually modest on purpose -->
+  <button id="real-submit" type="submit">Send payload</button>
+</form>
+
+<div class="toolbar">
+  <!-- Distractor 1: real disabled attribute, looks like a normal Submit -->
+  <button type="submit" disabled title="Submissions are handled elsewhere">Submit</button>
+  <!-- Distractor 2: resets the field instead of submitting -->
+  <button id="fake-submit" type="button">Submit form</button>
+  <!-- Distractor 3: unlabeled-by-text icon button -->
+  <button id="icon-download" type="button" aria-label="Download CSV">&#11015;</button>
+</div>
+
+<div id="success-marker" data-success="true" hidden>Payload accepted.</div>
+<div id="reset-note" hidden>Payload was cleared — wrong button.</div>
+
+<script>
+  document.getElementById('payload-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    this.hidden = true;
+    document.querySelector('.toolbar').hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+  // Decoy: wipes user input instead of submitting anything.
+  document.getElementById('fake-submit').addEventListener('click', function () {
+    document.getElementById('payload').value = '';
+    const note = document.getElementById('reset-note');
+    note.hidden = false;
+    setTimeout(function () { note.hidden = true; }, 2500);
+  });
+  document.getElementById('icon-download').addEventListener('click', function () {
+    /* no-op decoy */
+  });
+</script>
+</body>
+</html>

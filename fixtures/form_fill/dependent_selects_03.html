@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- form-fill-dependent-selects-03: city options are rendered only after a country
+     with cities is chosen. Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Delivery Order</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}label{display:block;margin-top:.5rem}</style>
+</head>
+<body>
+<h1>Delivery Order</h1>
+<form id="order-form">
+  <label>Country
+    <select id="country">
+      <option value="">-- select --</option>
+      <option value="kz">Kazakhstan</option>
+      <option value="de">Germany</option>
+      <option value="xx">Atlantis</option>
+    </select>
+  </label>
+  <label>City <select id="city" disabled><option value="">-- select country first --</option></select></label>
+  <label><input id="terms" type="checkbox"> I agree to delivery terms</label>
+  <button id="order-btn" type="submit">Place order</button>
+</form>
+<div id="error-box" hidden style="color:#b00020"></div>
+<div id="success-marker" data-success="true" hidden>Order placed successfully.</div>
+<script>
+  var CITIES = { kz: [['almaty', 'Almaty'], ['astana', 'Astana']],
+                 de: [['berlin', 'Berlin'], ['munich', 'Munich']] };
+  document.getElementById('country').addEventListener('change', function () {
+    var city = document.getElementById('city');
+    city.innerHTML = '<option value="">-- select city --</option>';
+    var list = CITIES[this.value] || [];
+    list.forEach(function (pair) {
+      var opt = document.createElement('option');
+      opt.value = pair[0]; opt.textContent = pair[1];
+      city.appendChild(opt);
+    });
+    city.disabled = list.length === 0;
+  });
+  document.getElementById('order-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('error-box');
+    if (!document.getElementById('city').value ||
+        !document.getElementById('terms').checked) {
+      err.textContent = 'Select country and city, and accept the terms.';
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    this.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+</script>
+</body>
+</html>

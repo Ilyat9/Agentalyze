@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!-- extract-date-02: the start date is written in prose ('March 14, 2027'); distractor
+     dates: registration deadline (Feb 28) and afterparty (March 15).
+     Answer form records #recorded-answer / #recorded-confidence, marker: #answer-recorded -->
+<html lang="en">
+<head><meta charset="utf-8"><title>DataConf 2027</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}label{display:block;margin-top:.5rem}</style></head>
+<body>
+<h1>DataConf 2027</h1>
+<article>
+  <p>Registration for DataConf 2027 closes on <strong>February 28, 2027</strong>.</p>
+  <p>The conference itself will take place on <strong>March 14, 2027</strong> at the
+     Grand Hall. Workshops run the day before.</p>
+  <p>The traditional afterparty follows on <strong>March 15, 2027</strong>.</p>
+</article>
+
+<h2>Submit your answer</h2>
+<form id="answer-form">
+  <label>Answer (YYYY-MM-DD): <input id="answer-value" type="text"></label>
+  <label>Confidence (0..1): <input id="answer-confidence" type="text"></label>
+  <button id="submit-answer" type="submit">Submit answer</button>
+</form>
+<div id="answer-recorded" hidden>
+  Recorded answer: <span id="recorded-answer"></span>,
+  confidence: <span id="recorded-confidence"></span>
+</div>
+<script>
+  document.getElementById('answer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = document.getElementById('answer-value').value.trim();
+    var c = document.getElementById('answer-confidence').value.trim();
+    if (!v || !c) return;
+    document.getElementById('recorded-answer').textContent = v;
+    document.getElementById('recorded-confidence').textContent = c;
+    document.getElementById('answer-recorded').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

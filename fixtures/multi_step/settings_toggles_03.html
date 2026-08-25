@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- multi-settings-toggles-03: notifications toggle starts ON, beta OFF. Both must end ON,
+     then Save. Double-toggling a switch turns it back off and Save fails.
+     Success marker: #success-marker -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Settings</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}label{display:block;margin-top:.6rem}</style></head>
+<body>
+<h1>Workspace Settings</h1>
+<form id="settings-form">
+  <label><input id="toggle-notifications" type="checkbox" checked> Email notifications</label>
+  <label><input id="toggle-beta" type="checkbox"> Beta features</label>
+  <br><button id="save-settings" type="submit">Save settings</button>
+</form>
+<p id="save-status"></p>
+<div id="success-marker" data-success="true" hidden>Settings saved.</div>
+<script>
+  document.getElementById('settings-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var notif = document.getElementById('toggle-notifications').checked;
+    var beta = document.getElementById('toggle-beta').checked;
+    var status = document.getElementById('save-status');
+    if (notif && beta) {
+      status.textContent = '';
+      this.hidden = true;
+      document.getElementById('success-marker').hidden = false;
+    } else {
+      status.textContent = 'Both email notifications and beta features must be enabled.';
+    }
+  });
+</script>
+</body>
+</html>

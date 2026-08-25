@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!-- err-retry-submit-01: DELIBERATE FAILURE MODE — the first submit attempt is always
+     rejected by a simulated server error; the second attempt with the same data succeeds.
+     State kept in a simple closure counter. Success marker: #success-marker -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Support Ticket</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}label{display:block;margin-top:.5rem}</style></head>
+<body>
+<h1>New Support Ticket</h1>
+<form id="ticket-form">
+  <label>Title <input id="ticket-title" type="text"></label>
+  <button id="submit-ticket" type="submit">Submit ticket</button>
+</form>
+<p id="ticket-status" style="color:#b00020"></p>
+<div id="success-marker" data-success="true" hidden>Ticket submitted successfully.</div>
+<script>
+  // First submission attempt always fails with a transient server error; retrying
+  // the same form (same data) on the second attempt succeeds.
+  var attempt = 0;
+  document.getElementById('ticket-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    attempt += 1;
+    var status = document.getElementById('ticket-status');
+    if (!document.getElementById('ticket-title').value.trim()) {
+      status.textContent = 'Title is required.';
+      return;
+    }
+    if (attempt === 1) {
+      status.textContent = 'Error 500: transient server error, please try again.';
+      return;
+    }
+    status.textContent = '';
+    this.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+</script>
+</body>
+</html>

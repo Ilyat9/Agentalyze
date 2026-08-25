@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- err-flaky-widget-03: DELIBERATE FAILURE MODE — 'Generate report' fails exactly twice
+     (different transient messages), the third click succeeds. Closure counter, documented.
+     Success marker: #success-marker -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Reports</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}</style></head>
+<body>
+<h1>Monthly Report Generator</h1>
+<button id="generate-report" type="button">Generate report</button>
+<p id="flaky-status" style="color:#b00020"></p>
+<div id="success-marker" data-success="true" hidden>
+  Report generated: monthly_report_2026_08.pdf
+</div>
+<script>
+  // Attempt counter: clicks 1 and 2 fail with different transient errors, click 3 works.
+  var attempts = 0;
+  document.getElementById('generate-report').addEventListener('click', function () {
+    attempts += 1;
+    var status = document.getElementById('flaky-status');
+    if (attempts === 1) {
+      status.textContent = 'Error: queue timeout. Please try again.';
+    } else if (attempts === 2) {
+      status.textContent = 'Error: backend worker restarted mid-job. Please try again.';
+    } else {
+      status.textContent = '';
+      this.hidden = true;
+      document.getElementById('success-marker').hidden = false;
+    }
+  });
+</script>
+</body>
+</html>

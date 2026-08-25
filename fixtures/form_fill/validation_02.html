@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!-- form-fill-validation-02: client-side validation rules:
+     username >= 4 chars, valid email, password == confirm, age int >= 18, terms required.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create Account</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; }
+  label { display:block; margin-top:.5rem; }
+  .errors { color: #b00020; }
+</style>
+</head>
+<body>
+<h1>Create Account</h1>
+<form id="register-form" novalidate>
+  <label>Username (min 4 chars) <input id="username" type="text"></label>
+  <label>Email <input id="email" type="text"></label>
+  <label>Password <input id="password" type="password"></label>
+  <label>Confirm password <input id="password-confirm" type="password"></label>
+  <label>Age <input id="age" type="text"></label>
+  <label><input id="terms" type="checkbox"> I accept the terms</label>
+  <button id="register-btn" type="submit">Register</button>
+</form>
+<ul id="validation-errors" class="errors" hidden></ul>
+<div id="success-marker" data-success="true" hidden>Account registered successfully.</div>
+<script>
+  document.getElementById('register-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = function (id) { return document.getElementById(id).value.trim(); };
+    var errors = [];
+    if (v('username').length < 4) errors.push('Username must be at least 4 characters.');
+    if (!/.+@.+\..+/.test(v('email'))) errors.push('Email is invalid.');
+    if (v('password').length < 6) errors.push('Password too short.');
+    if (v('password') !== v('password-confirm')) errors.push('Passwords do not match.');
+    var age = parseInt(v('age'), 10);
+    if (isNaN(age) || age < 18) errors.push('Age must be a number of at least 18.');
+    if (!document.getElementById('terms').checked) errors.push('You must accept the terms.');
+    var box = document.getElementById('validation-errors');
+    if (errors.length) {
+      box.innerHTML = '';
+      errors.forEach(function (msg) {
+        var li = document.createElement('li');
+        li.textContent = msg;
+        box.appendChild(li);
+      });
+      box.hidden = false;
+      return;
+    }
+    box.hidden = true;
+    this.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!-- extract-table-count-03: count orders that are BOTH delivered AND total > 100.00.
+     Correct answer: 3. Near-threshold decoys included on purpose.
+     Answer form records #recorded-answer / #recorded-confidence, marker: #answer-recorded -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Orders — Admin</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.35rem .7rem}</style></head>
+<body>
+<h1>Recent Orders</h1>
+<table id="orders">
+  <tr><th>Order</th><th>Status</th><th>Total</th></tr>
+  <tr><td>#1001</td><td data-status="delivered">Delivered</td><td>$120.00</td></tr>
+  <tr><td>#1002</td><td data-status="processing">Processing</td><td>$250.75</td></tr>
+  <tr><td>#1003</td><td data-status="delivered">Delivered</td><td>$99.99</td></tr>
+  <tr><td>#1004</td><td data-status="delivered">Delivered</td><td>$310.10</td></tr>
+  <tr><td>#1005</td><td data-status="cancelled">Cancelled</td><td>$540.00</td></tr>
+  <tr><td>#1006</td><td data-status="delivered">Delivered</td><td>$145.20</td></tr>
+  <tr><td>#1007</td><td data-status="delivered">Delivered</td><td>$100.00</td></tr>
+  <tr><td>#1008</td><td data-status="delivered">Delivered</td><td>$87.30</td></tr>
+</table>
+
+<h2>Submit your answer</h2>
+<form id="answer-form">
+  <label>Answer (count): <input id="answer-value" type="text"></label>
+  <label>Confidence (0..1): <input id="answer-confidence" type="text"></label>
+  <button id="submit-answer" type="submit">Submit answer</button>
+</form>
+<div id="answer-recorded" hidden>
+  Recorded answer: <span id="recorded-answer"></span>,
+  confidence: <span id="recorded-confidence"></span>
+</div>
+<script>
+  document.getElementById('answer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = document.getElementById('answer-value').value.trim();
+    var c = document.getElementById('answer-confidence').value.trim();
+    if (!v || !c) return;
+    document.getElementById('recorded-answer').textContent = v;
+    document.getElementById('recorded-confidence').textContent = c;
+    document.getElementById('answer-recorded').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!-- distractor-links-02: five links claim to lead to "the dashboard". Only
+     a[data-dashboard="genuine-v3"] reveals the genuine dashboard (#dashboard-real);
+     every look-alike link opens a decoy panel instead.
+     Success marker: #dashboard-real -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Acme Intranet</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:2rem}
+  li{margin:.4rem 0}
+  .panel{display:none;margin-top:1rem;padding:1rem;border:1px solid #ccc}
+  .panel.visible{display:block}
+</style>
+</head>
+<body>
+<h1>Acme Intranet</h1>
+<p>Quick links:</p>
+<ul>
+  <li><a href="#" data-dashboard="v1">Open Dashboard</a></li>
+  <li><a href="#" data-dashboard="v2-beta">Open Dashboard v2 (beta)</a></li>
+  <li><a href="#" data-dashboard="legacy">Legacy dashboard</a></li>
+  <li><a href="#" data-dashboard="my">My Dashboard</a></li>
+  <li><a href="#" data-dashboard="genuine-v3">Acme Dashboard</a></li>
+</ul>
+
+<div class="panel" data-panel="v1">Dashboard v1 was retired in 2024.</div>
+<div class="panel" data-panel="v2-beta">Dashboard v2 beta: build failed. Nothing to show.</div>
+<div class="panel" data-panel="legacy">Legacy dashboard is under maintenance.</div>
+<div class="panel" data-panel="my">My Dashboard is empty. No widgets configured.</div>
+
+<!-- Only genuine panel contains the verifier target -->
+<div class="panel" data-panel="genuine-v3" id="dashboard-real">
+  Genuine dashboard v3: uptime 99.98%, open incidents: 0.
+</div>
+
+<script>
+  // Exactly one panel is shown at a time; the genuine link is the only path to #dashboard-real.
+  document.querySelectorAll('a[data-dashboard]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('visible'); });
+      const name = link.getAttribute('data-dashboard');
+      const panel = document.querySelector('[data-panel="' + name + '"]');
+      if (panel) { panel.classList.add('visible'); }
+    });
+  });
+</script>
+</body>
+</html>

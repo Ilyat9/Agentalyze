@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!-- multi-shop-checkout-01: list -> cart -> checkout flow.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Mini Shop</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:2rem}
+.view{display:none}.view.active{display:block}
+.product{border:1px solid #ddd;padding:.75rem;margin:.5rem 0}
+</style>
+</head>
+<body>
+<div id="view-shop" class="view active">
+  <h1>Mini Shop</h1>
+  <div class="product"><strong>Cork Board</strong> — $15 <button data-add-to-cart="item-cork">Add to cart</button></div>
+  <div class="product"><strong>Bamboo Desk Lamp</strong> — $42 <button data-add-to-cart="item-bamboo">Add to cart</button></div>
+  <div class="product"><strong>Metal Ruler</strong> — $6 <button data-add-to-cart="item-ruler">Add to cart</button></div>
+  <p><a href="#" data-nav="cart" onclick="show('cart');return false;">Go to cart</a></p>
+</div>
+
+<div id="view-cart" class="view">
+  <h1>Your Cart</h1>
+  <ul id="cart-items"></ul>
+  <label><input id="confirm-terms" type="checkbox"> I accept the checkout terms</label><br>
+  <button id="checkout-btn" disabled>Checkout</button>
+  <p id="checkout-error" hidden style="color:#b00020"></p>
+</div>
+
+<div id="view-done" class="view">
+  <h1>Purchase complete</h1>
+  <div id="success-marker" data-success="true">Order confirmed. Thank you!</div>
+</div>
+
+<script>
+  var cart = [];
+  function show(id) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+    document.getElementById('view-' + id).classList.add('active');
+  }
+  document.querySelectorAll('[data-add-to-cart]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      cart.push(btn.dataset.addToCart);
+      render();
+    });
+  });
+  function render() {
+    var ul = document.getElementById('cart-items');
+    ul.innerHTML = '';
+    cart.forEach(function (name) {
+      var li = document.createElement('li');
+      li.textContent = name;
+      ul.appendChild(li);
+    });
+    document.getElementById('checkout-btn').disabled = cart.length === 0 ||
+      !document.getElementById('confirm-terms').checked;
+  }
+  document.getElementById('confirm-terms').addEventListener('change', render);
+  document.getElementById('checkout-btn').addEventListener('click', function () {
+    if (!document.getElementById('confirm-terms').checked) {
+      var err = document.getElementById('checkout-error');
+      err.textContent = 'Accept the terms first.';
+      err.hidden = false;
+      return;
+    }
+    if (cart.length === 0) return;
+    show('done');
+  });
+</script>
+</body>
+</html>

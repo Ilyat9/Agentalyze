@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!-- extract-price-01: the agent must find the Nordic Chair price ($1,249.90), normalise
+     it to a plain number, and submit it via the answer form together with a confidence.
+     Success markers recorded by JS: #answer-recorded (+ #recorded-answer/#recorded-confidence) -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Furniture Store</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.4rem .8rem}</style>
+</head>
+<body>
+<h1>Furniture Store — Weekly Picks</h1>
+<table>
+  <tr><th>Item</th><th>Price</th><th>Stock</th></tr>
+  <tr><td data-item="standing-desk">Standing Desk 140</td><td>$599.00</td><td>In stock</td></tr>
+  <tr><td data-item="office-chair">Office Chair Basic</td><td>$189.50</td><td>Sold out</td></tr>
+  <tr><td data-item="nordic-chair">Nordic Chair</td><td>$1,249.90</td><td>In stock</td></tr>
+  <tr><td data-item="bookshelf">Bookshelf Oak</td><td>$349.99</td><td>In stock</td></tr>
+</table>
+
+<h2>Submit your answer</h2>
+<form id="answer-form">
+  <label>Answer (plain number in USD): <input id="answer-value" type="text"></label>
+  <label>Confidence (0..1): <input id="answer-confidence" type="text"></label>
+  <button id="submit-answer" type="submit">Submit answer</button>
+</form>
+<div id="answer-recorded" hidden>
+  Recorded answer: <span id="recorded-answer"></span>,
+  confidence: <span id="recorded-confidence"></span>
+</div>
+<script>
+  document.getElementById('answer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = document.getElementById('answer-value').value.trim();
+    var c = document.getElementById('answer-confidence').value.trim();
+    if (!v || !c) return; // nothing recorded without both fields
+    document.getElementById('recorded-answer').textContent = v;
+    document.getElementById('recorded-confidence').textContent = c;
+    document.getElementById('answer-recorded').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

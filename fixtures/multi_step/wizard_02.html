@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- multi-wizard-02: three gated steps. 'Next' does nothing until the current step is
+     valid; step 3 shows Finish only after steps 1-2 completed. Success marker: #success-marker -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Account Setup Wizard</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}.step{display:none}.step.active{display:block}</style></head>
+<body>
+<h1>Account Setup</h1>
+<p id="wizard-progress">Step 1 of 3</p>
+
+<div class="step active" id="wiz-step1">
+  <label>Your name <input id="wiz-name" type="text"></label>
+  <br><button id="wiz-next-1">Next</button>
+  <p class="err" hidden style="color:#b00020">Enter your name to continue.</p>
+</div>
+
+<div class="step" id="wiz-step2">
+  <label>Plan
+    <select id="wiz-plan">
+      <option value="">-- choose a plan --</option>
+      <option value="free">Free</option>
+      <option value="pro">Pro</option>
+    </select>
+  </label>
+  <br><button id="wiz-back">Back</button> <button id="wiz-next-2">Next</button>
+  <p class="err" hidden style="color:#b00020">Select the Pro plan to continue.</p>
+</div>
+
+<div class="step" id="wiz-step3">
+  <label><input id="wiz-confirm" type="checkbox"> I confirm the setup details are correct</label>
+  <br><button id="wiz-finish" disabled>Finish</button>
+</div>
+
+<div id="success-marker" data-success="true" hidden>Wizard finished. Account ready.</div>
+<script>
+  var step = 1;
+  function show() {
+    document.querySelectorAll('.step').forEach(function (s) { s.classList.remove('active'); });
+    document.getElementById('wiz-step' + step).classList.add('active');
+    document.getElementById('wizard-progress').textContent = 'Step ' + step + ' of 3';
+  }
+  function err(el, on) { el.hidden = !on; }
+  document.getElementById('wiz-next-1').addEventListener('click', function () {
+    var ok = document.getElementById('wiz-name').value.trim().length > 0;
+    err(document.querySelector('#wiz-step1 .err'), !ok);
+    if (ok) { step = 2; show(); }
+  });
+  document.getElementById('wiz-next-2').addEventListener('click', function () {
+    var ok = document.getElementById('wiz-plan').value === 'pro';
+    err(document.querySelector('#wiz-step2 .err'), !ok);
+    if (ok) { step = 3; show(); }
+  });
+  document.getElementById('wiz-back').addEventListener('click', function () {
+    step = 1; show();
+  });
+  document.getElementById('wiz-confirm').addEventListener('change', function () {
+    document.getElementById('wiz-finish').disabled = !this.checked;
+  });
+  document.getElementById('wiz-finish').addEventListener('click', function () {
+    document.querySelectorAll('.step').forEach(function (s) { s.classList.remove('active'); });
+    document.getElementById('success-marker').hidden = false;
+  });
+</script>
+</body>
+</html>

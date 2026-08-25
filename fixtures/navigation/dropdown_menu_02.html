@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!-- nav-dropdown-menu-02: hidden two-level menu. Success marker: #dropdown-target[data-opened="true"].
+     The submenu items exist in the DOM only after the parent menu button is clicked. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Acme Products</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; }
+  .menu { position: relative; display: inline-block; }
+  .submenu { display: none; position: absolute; background: #fff; border: 1px solid #ccc; padding: .5rem; }
+  .submenu.open { display: block; }
+</style>
+</head>
+<body>
+<h1>Acme Products</h1>
+<div class="menu">
+  <button type="button" data-menu-toggle="products">Products ▾</button>
+  <div class="submenu" id="products-menu">
+    <button type="button" data-submenu-item="widgets">Widgets</button>
+    <button type="button" data-submenu-item="analytics-pro">Analytics Pro</button>
+    <button type="button" data-submenu-item="cloud">Cloud Suite</button>
+  </div>
+</div>
+<button type="button" data-menu-toggle="pricing">Pricing ▾</button>
+<p>Pick a product from the menu above.</p>
+
+<div id="dropdown-target" data-opened="false" hidden>
+  <h2>Analytics Pro</h2>
+  <p>Product page for Analytics Pro.</p>
+</div>
+<script>
+  document.querySelectorAll('[data-menu-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.dataset.menuToggle === 'products') {
+        document.getElementById('products-menu').classList.toggle('open');
+      }
+    });
+  });
+  document.querySelectorAll('[data-submenu-item]').forEach(function (item) {
+    item.addEventListener('click', function () {
+      var target = document.getElementById('dropdown-target');
+      target.hidden = false;
+      target.dataset.opened = 'true';
+    });
+  });
+</script>
+</body>
+</html>

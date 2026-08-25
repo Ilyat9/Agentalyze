@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!-- form-fill-basic-01: baseline contact form. Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Support Contact</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}label{display:block;margin-top:.5rem}</style>
+</head>
+<body>
+<h1>Contact Support</h1>
+<form id="contact-form">
+  <label>Name <input id="name" type="text"></label>
+  <label>Email <input id="email" type="text"></label>
+  <label>Message <textarea id="message" rows="4"></textarea></label>
+  <button id="submit-btn" type="submit">Send message</button>
+</form>
+<div id="success-marker" data-success="true" hidden>Message sent. We will reply within 2 business days.</div>
+<script>
+  document.getElementById('contact-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    this.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+  });
+</script>
+</body>
+</html>
