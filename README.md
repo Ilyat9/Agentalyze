@@ -5,8 +5,8 @@ generic benchmarks, Agentalyze focuses on a task suite of concrete agentic web
 tasks (form filling, fact extraction with confidence, tool-error recovery) and
 pinpoints *where exactly* an agent breaks — not just the success rate.
 
-> **Проект в разработке, реализуется поэтапно. Текущая фаза: 4 — метрики и
-> failure-таксономия завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
+> **Проект в разработке, реализуется поэтапно. Текущая фаза: 5 — сравнение
+> моделей и честные отчёты завершена. См. [`ROADMAP.md`](ROADMAP.md) для полного плана.**
 
 ## Требования
 
@@ -75,9 +75,9 @@ results/<run_id>/screenshots/step_N.png  # скриншот страницы п�
 
 Аналитический слой (`src/agentalyze/analysis/`) читает готовые `RunTrace`-объекты
 и превращает их в структурированные метрики. Он ничего не запускает (ни браузер,
-ни модель) и ничего не рисует — читаемые отчёты и сравнение моделей появятся в
-Фазе 5; здесь только вычисления, всё покрывается быстрыми unit-тестами
-(`pytest tests/analysis/`, доли секунды).
+ни модель) и ничего не рисует — читаемые отчёты и сравнение моделей — это
+Фаза 5 (см. раздел «Comparing providers» ниже); здесь только вычисления, всё
+покрывается быстрыми unit-тестами (`pytest tests/analysis/`, доли секунды).
 
 Что считается:
 
@@ -126,6 +126,67 @@ print({cat.value: m.success_rate for cat, m in metrics.by_category.items()})
 calibration = compute_calibration_report(traces)
 print(calibration.ece, calibration.low_statistics_warning)
 ```
+
+## Comparing providers (Фаза 5)
+
+Оркестратор (`src/agentalyze/orchestration/`) прогоняет **весь** набор задач
+(или его подмножество) **несколькими** провайдерами последовательно — одна
+комбинация «задача × провайдер» за другой, — сохраняя каждый трейс на диск по
+мере выполнения (сбой в середине долгого прогона не теряет уже готовые
+результаты) и печатая прогресс `[i/N]`. Параллельное выполнение в этой фазе
+намеренно не реализовано: `max_concurrent > 1` отклоняется с явной ошибкой.
+
+```bash
+# Прогон двух провайдеров на двух категориях задач
+agentbench compare --providers gpt-4o-mini-via-openrouter,llama3.1-8b-local \
+    --category form_fill,error_recovery
+
+# Или на всех 18 задачах сразу
+agentbench compare --providers gpt-4o-mini-via-openrouter,llama3.1-8b-local --all-tasks
+
+# Найти и открыть конкретные интересные трейсы готового прогона
+agentbench inspect --suite-run <suite_run_id> --tag looping
+agentbench inspect --suite-run <suite_run_id> --outcome failure_verifier
+```
+
+Перед стартом каждый выбранный провайдер проходит `health_check()`: если
+провайдер недоступен, команда завершается явной ошибкой, не начиная заведомо
+мёртвый прогон (никаких интерактивных промптов — CLI пригоден для автоматизации).
+
+Артефакты прогона:
+
+```
+results/<suite_run_id>/suite_run.json   # весь SuiteRunResult (все трейсы + метрики)
+results/<suite_run_id>/report.md        # Markdown-отчёт сравнения
+results/<run_id>/trace.json             # отдельные трейсы, как в Фазе 3
+```
+
+Отчёт содержит шесть секций: метаданные прогона, сводную таблицу провайдеров,
+разбивку по категориям задач, failure breakdown с человеческим объяснением
+тегов, калибровку уверенности (ECE печатается только если статистика
+достаточна — иначе явно написано «недостаточно данных») и **честный итоговый
+вывод**, вычисляемый программно из чисел конкретного прогона: он прямо называет
+случаи, когда «лучший в таблице» — не лучший выбор. Фрагмент отчёта:
+
+```markdown
+## Summary
+
+| Provider | Tasks | Success rate | Avg cost / task | Avg steps | p50 latency | p95 latency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `gpt-4o-mini-via-openrouter` | 3 | 66.7% | $0.0120 | 2.3 | 1.20s | 3.10s |
+| `llama3.1-8b-local`          | 3 | 33.3% | $0.0080 | 4.7 | 6.90s | 9.40s |
+
+## Honest conclusion
+
+- Провайдер **gpt-4o-mini-via-openrouter** даёт наивысший общий success rate
+  (66.7%), но провайдер **llama3.1-8b-local** стоит на 33.3% дешевле при
+  success rate 33.3%. Выбор зависит от того, что важнее для конкретного случая
+  использования: максимальное качество (gpt-4o-mini-via-openrouter) или
+  минимальная цена (llama3.1-8b-local).
+```
+
+Категории с малым числом задач (< 5) помечаются в отчёте как малая выборка, а
+не подаются с той же уверенностью, что и наполненные категории.
 
 ## Запуск тестов
 
@@ -299,6 +360,7 @@ pytest -m requires_ollama
   - `src/agentalyze/providers/` — единый интерфейс LLM-провайдеров, factory, retry
   - `src/agentalyze/runner/` — ReAct-цикл, browser-инструменты, наблюдение страницы, формат трейса (`trace.py`), CLI (`cli.py`)
   - `src/agentalyze/analysis/` — failure-таксономия, агрегированные метрики, калибровка уверенности, цены/стоимость (Фаза 4)
+  - `src/agentalyze/orchestration/` — прогон suite несколькими провайдерами, Markdown-отчёты сравнения, подкоманды CLI `compare`/`inspect` (Фаза 5)
 - `tests/` — тесты (`pytest`)
 - `fixtures/` — локальные HTML-фикстуры для задач (по подпапкам-категориям)
 - `providers.example.yaml` — шаблон конфигурации LLM-провайдеров
