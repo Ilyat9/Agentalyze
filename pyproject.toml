@@ -32,6 +32,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "browser: requires a real Chromium install (pip install -e \".[browser]\" && playwright install chromium); excluded from the default run — opt in with `pytest -m browser`",
+]
+addopts = "-m 'not browser'"
 
 [tool.ruff]
 line-length = 100
