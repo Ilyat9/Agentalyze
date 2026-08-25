@@ -188,6 +188,91 @@ results/<run_id>/trace.json             # отдельные трейсы, ка�
 Категории с малым числом задач (< 5) помечаются в отчёте как малая выборка, а
 не подаются с той же уверенностью, что и наполненные категории.
 
+## Regression checks in CI (Фаза 6)
+
+Фаза 6 добавляет сравнение двух прогонов **во времени**: вот baseline-прогон,
+вот новый прогон после изменения промпта/логики агента — что изменилось?
+Само выполнение задач не изменилось (`run_task`/`run_suite` из Фаз 3/5
+используются как есть) — это новый слой поверх уже сохранённых результатов.
+
+### Команды
+
+```bash
+# Явное указание обоих прогонов:
+agentbench regression-check --baseline <suite_run_id> --new <suite_run_id>
+
+# Без --baseline: используется baseline, помеченный ранее:
+agentbench set-baseline --suite-run <suite_run_id>
+agentbench regression-check --new <suite_run_id>
+
+# Посмотреть diff, не прерывая скрипт ненулевым кодом возврата:
+agentbench regression-check --baseline <id> --new <id> --allow-regressions
+```
+
+Baseline хранится в простом файле-указателе `{results_dir}/current_baseline.txt`
+и обновляется **только явно** командой `set-baseline` — никогда автоматически
+после прогона. Baseline — это осознанное решение пользователя: «текущее
+состояние — новая точка отсчёта».
+
+### Сравнение по парам (task, provider)
+
+Трейсы сопоставляются по паре `(task_id, provider_name)`. Сравниваются только
+общие провайдеры двух прогонов; провайдеры, присутствующие лишь в одном из
+них, явно перечисляются в отчёте (`providers_only_in_baseline` /
+`providers_only_in_new`) — несоответствие не замалчивается. Шесть статусов
+для каждой пары:
+
+| Статус | Значение |
+| ------ | -------- |
+| `still_passing` | SUCCESS → SUCCESS |
+| `still_failing` | FAILURE_* → FAILURE_* (любой вид неудачи в обоих прогонах) |
+| `regressed` | SUCCESS → FAILURE_* |
+| `fixed` | FAILURE_* → SUCCESS |
+| `newly_added` | задача есть в новом прогоне, отсутствовала в baseline (набор вырос) |
+| `removed` | задача была в baseline, исчезла из нового прогона |
+
+Полный машинночитаемый отчёт сохраняется в
+`{results_dir}/{new_suite_run_id}/regression_report.json`.
+
+### Коды возврата (CI-gate)
+
+| Код | Когда |
+| --- | ----- |
+| `0` | Регрессий нет (или передан `--allow-regressions`) |
+| `1` | Есть хотя бы одна регрессия (`regressed_count > 0`) и флаг `--allow-regressions` не передан |
+| `2` | Проблема использования: неизвестный id прогона, baseline не установлен |
+
+Это делает команду пригодной как gate в CI: шаг workflow падает, если задачи
+стали проходить хуже:
+
+```yaml
+- run: agentbench regression-check --new "$NEW_RUN_ID"   # exit 1 => PR красный
+```
+
+### Активация GitHub Actions workflow
+
+В репозитории лежит **шаблон** `.github/workflows/regression-check.yml.example`.
+Расширение `.example` выбрано намеренно: workflow требует реального доступа к
+LLM-провайдеру и секретов API-ключей, которых у типичного форкнутого
+репозитория нет — поэтому он никогда не запустится сам по себе. Чтобы
+активировать:
+
+1. Переименуйте файл: `git mv .github/workflows/regression-check.yml.example .github/workflows/regression-check.yml`.
+2. Добавьте API-ключ в секреты репозитория (Settings → Secrets and variables → Actions),
+   например `OPENROUTER_API_KEY`, и укажите его в `env:` шага compare.
+3. Закоммитьте реальный `providers.yaml` (по образцу `providers.example.yaml`)
+   и подставьте имя провайдера в `--providers`.
+4. Зафиксируйте baseline: подставьте известный `BASELINE_RUN_ID` в env шага gate
+   и обеспечьте наличие артефактов этого прогона (кеш/перезапуск в CI), либо
+   один раз выполните `agentbench set-baseline --suite-run <id>` внутри CI.
+5. Сузьте триггер `paths:` под реальные места промптов/логики вашего агента —
+   текущий фильтр нарочно широкий.
+6. В CI запускайте компактное подмножество suite (`--category` с 1–2
+   категориями или короткий список задач): regression-check должен занимать
+   минуты, а не часы; полные прогоны — для scheduled/manual запусков.
+
+Подробные комментарии — прямо в теле `.yml.example`.
+
 ## Запуск тестов
 
 ```bash
@@ -361,6 +446,7 @@ pytest -m requires_ollama
   - `src/agentalyze/runner/` — ReAct-цикл, browser-инструменты, наблюдение страницы, формат трейса (`trace.py`), CLI (`cli.py`)
   - `src/agentalyze/analysis/` — failure-таксономия, агрегированные метрики, калибровка уверенности, цены/стоимость (Фаза 4)
   - `src/agentalyze/orchestration/` — прогон suite несколькими провайдерами, Markdown-отчёты сравнения, подкоманды CLI `compare`/`inspect` (Фаза 5)
+  - `src/agentalyze/regression/` — diff двух прогонов (`diff.py`), baseline-указатель и загрузка прогонов (`storage.py`), подкоманды CLI `regression-check`/`set-baseline` (Фаза 6)
 - `tests/` — тесты (`pytest`)
 - `fixtures/` — локальные HTML-фикстуры для задач (по подпапкам-категориям)
 - `providers.example.yaml` — шаблон конфигурации LLM-провайдеров
