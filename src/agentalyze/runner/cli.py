@@ -50,17 +50,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers.add_parser("tasks", help="List registered tasks and exit.")
+
+    # Phase 5: comparison commands live in agentalyze.orchestration.cli but
+    # are registered HERE so `agentbench` stays the single entry point.
+    from agentalyze.orchestration.cli import register_parsers
+
+    register_parsers(subparsers)
     return parser
 
 
 def _apply_overrides(settings: Settings, args: argparse.Namespace) -> Settings:
-    """Rebuild settings with CLI overrides so types are re-validated by pydantic."""
+    """Rebuild settings with CLI overrides so types are re-validated by pydantic.
+
+    Tolerates subcommands that don't define every override flag (e.g.
+    `inspect` has no --fixtures-dir): missing attributes are simply absent
+    overrides.
+    """
     overrides = {}
-    if args.providers_config:
+    if getattr(args, "providers_config", None):
         overrides["providers_config_path"] = args.providers_config
-    if args.results_dir:
+    if getattr(args, "results_dir", None):
         overrides["results_dir"] = args.results_dir
-    if args.fixtures_dir:
+    if getattr(args, "fixtures_dir", None):
         overrides["fixtures_dir"] = args.fixtures_dir
     if not overrides:
         return settings
@@ -100,6 +111,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "tasks":
         _print_task_list()
         return 0
+
+    # Phase 5 commands handle their own provider loading / health checks.
+    if args.command == "compare":
+        from agentalyze.orchestration.cli import cmd_compare
+
+        return cmd_compare(args, _apply_overrides(settings, args))
+
+    if args.command == "inspect":
+        from agentalyze.orchestration.cli import cmd_inspect
+
+        return cmd_inspect(args, _apply_overrides(settings, args))
 
     settings = _apply_overrides(settings, args)
     task = TASKS_BY_ID.get(args.task)
