@@ -1,0 +1,109 @@
+# =============================================================================
+# Regression-check workflow TEMPLATE (Phase 6) — NOT an active workflow.
+#
+# The `.yml.example` extension is deliberate: this job needs a REAL LLM
+# provider (API key + network access) on every run, which a typical fork or
+# free-tier CI cannot and should not provide by default. GitHub ignores
+# files it cannot parse as workflows, so keeping the extension means this
+# never runs until a maintainer consciously opts in.
+#
+# HOW TO ACTIVATE (README "Regression checks in CI" has the long version):
+#   1. Copy this file to `.github/workflows/regression-check.yml`
+#      (`git mv .github/workflows/regression-check.yml.example
+#              .github/workflows/regression-check.yml`).
+#   2. Add your provider API key as a repository secret, e.g.
+#      Settings -> Secrets and variables -> Actions -> New repository secret:
+#      `OPENROUTER_API_KEY` (or another name — update `env:` below to match,
+#      plus whatever variable name providers.yaml reads it from).
+#   3. Commit a real `providers.yaml` (see `providers.example.yaml`) that
+#      references that environment variable, and put its provider name into
+#      the `--providers` flag of the compare step below.
+#   4. Publish a first baseline from a local/known-good run:
+#      commit its suite_run_id into the workflow (BASELINE_RUN_ID env below)
+#      AND make sure that run's artifacts exist in the cache restored by the
+#      "Restore baseline results" step, or re-run the baseline inside CI once
+#      and mark it: `agentbench set-baseline --suite-run <id>`.
+#   5. Narrow the `paths:` trigger to wherever YOUR agent prompts/logic live;
+#      the current filter is intentionally broad.
+# =============================================================================
+
+name: Agent regression check
+
+on:
+  pull_request:
+    paths:
+      # Broad filter on purpose — narrow it to the files whose changes can
+      # actually change agent behavior for your use case (system prompt,
+      # task definitions, runner logic):
+      - "src/agentalyze/tasks/**"
+      - "src/agentalyze/runner/**"
+      # - "prompts/system_prompt.md"   # <- example; adjust to your layout
+
+jobs:
+  regression-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # regression CI must stay fast; keep the subset small
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package with browser extra
+        run: pip install -e ".[browser]"
+
+      - name: Install Chromium
+        run: playwright install chromium
+
+      # --- SECRETS ----------------------------------------------------------
+      # Uncomment and adjust. The key itself must come from ${{ secrets.* }} —
+      # NEVER hardcode it. providers.yaml only names the env var.
+      # env:
+      #   OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      # Keep CI fast: run a COMPACT subset (1-2 categories via --category, or
+      # an explicit short --tasks list), not the whole registry. Aim for a
+      # runtime of a few minutes; full suites belong to scheduled/manual runs.
+      - name: Run compact benchmark subset
+        run: |
+          agentbench compare \
+            --providers gpt-4o-mini-via-openrouter \
+            --category navigation
+
+      - name: Resolve the just-finished run id
+        id: new_run
+        run: |
+          NEW_RUN="$(ls -t results | head -1)"
+          echo "id=${NEW_RUN}" >> "$GITHUB_OUTPUT"
+
+      # The baseline artifacts ({results_dir}/{baseline_id}/suite_run.json)
+      # must be present for the comparison. Either restore them from a cache
+      # keyed on the pinned BASELINE_RUN_ID...
+      - name: Restore baseline results
+        uses: actions/cache@v4
+        with:
+          path: results
+          key: agentbench-baseline-v1  # bump when you adopt a new baseline
+
+      # ...and pin WHICH run is the baseline explicitly. Baselines change
+      # deliberately (agentbench set-baseline / set-baseline CLI), never
+      # automatically — so the id is pinned here and bumped on purpose.
+      - name: Regression gate (fails the PR when tasks got worse)
+        env:
+          BASELINE_RUN_ID: "00000000-0000-0000-0000-000000000000"  # <- pin yours
+        run: |
+          agentbench regression-check \
+            --baseline "${BASELINE_RUN_ID}" \
+            --new "${{ steps.new_run.outputs.id }}"
+          # Exit code contract: 1 => regressions found => this step fails =>
+          # the PR check goes red. Add `--allow-regressions` temporarily if
+          # you want an informational-only period while tuning thresholds.
+
+      - name: Upload comparison report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report
+          path: results/${{ steps.new_run.outputs.id }}/regression_report.json
