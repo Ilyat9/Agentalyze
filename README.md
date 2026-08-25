@@ -1,5 +1,16 @@
 # Agentalyze
 
+<!-- Если репозиторий живёт под другим аккаунтом — замените ilyat9 в URL бейджей ниже. -->
+[![CI](https://github.com/ilyat9/agentalyze/actions/workflows/ci.yml/badge.svg)](https://github.com/ilyat9/agentalyze/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](pyproject.toml)
+[![mypy](https://img.shields.io/badge/mypy-strict-blue)](.github/workflows/ci.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/tests-217%20passing-brightgreen)](.github/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
+![Task suite](https://img.shields.io/badge/task%20suite-18%20tasks%20·%206%20categories%20·%209%20verifiers-8a63d2)
+
+![agentalyze CLI в действии](docs/assets/cli-tasks.svg)
+
 Eval harness for LLM agents working with tools and a real browser. Вместо
 абстрактных бенчмарков — suite из 18 конкретных агентных веб-задач
 (заполнение форм, извлечение фактов с уверенностью, восстановление после
@@ -53,26 +64,25 @@ agentalyze run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 Проект слоистый; каждый слой Фазы строил поверх предыдущих и ничего о них
 не предполагал сверх явных интерфейсов:
 
-```
- tasks (Фаза 1)        providers (Фаза 2)         runner (Фаза 3)
- реестр 18 задач   +   OpenAI-совместимый /   →   реальный Chromium, ReAct-цикл,
- HTML-фикстуры,        Ollama, retry,              browser-инструменты, трейс
- верификаторы          health-check
-        │                    │                        │
-        └────────┬───────────┴───────────┬────────────┘
-                 ▼                       ▼
-          Task + Provider ──→ RunTrace (results/<run_id>/trace.json + screenshots/)
-                                        │
-                     analysis (Фаза 4)  ▼   failure-таксономия, агрегаты,
-                                        │   калибровка уверенности, цены
-                                        ▼
-                     orchestration (Фаза 5) compare/inspect → report.md
-                                        │
-                                        ▼
-                     regression (Фаза 6)    regression-check vs baseline
-                                        │    (exit 0/1/2 — CI-гейт)
-                                        ▼
-                                  Report / CI gate
+```mermaid
+flowchart TB
+    subgraph PH1["tasks · Фаза 1"]
+        T["Реестр 18 задач<br/>HTML-фикстуры + fixture-сервер<br/>программные верификаторы (финальный DOM)"]
+    end
+    subgraph PH2["providers · Фаза 2"]
+        P["OpenAI-совместимый API / Ollama<br/>retry (tenacity) · health-check"]
+    end
+    subgraph PH3["runner · Фаза 3"]
+        R["ReAct-цикл в реальном Chromium<br/>browser-инструменты: navigate / click / type /<br/>select / submit / extract / wait"]
+    end
+    T --> RUN(("×"))
+    P --> RUN
+    R --> TRACE["RunTrace<br/>results/&lt;run_id&gt;/trace.json + screenshots/"]
+    TRACE --> PH4["analysis · Фаза 4<br/>failure-таксономия · агрегаты метрик<br/>калибровка уверенности (ECE) · цены"]
+    PH4 --> PH5["orchestration · Фаза 5<br/>suite-runner · compare / inspect → report.md"]
+    PH5 --> PH6["regression · Фаза 6<br/>diff vs baseline · exit-коды 0/1/2"]
+    PH6 --> OUT["Отчёт / CI-gate"]
+    style OUT fill:#1f6feb,stroke:#1f6feb,color:#ffffff
 ```
 
 Поток данных одной строкой: `Task + Provider → RunTrace → Metrics → Report`.
@@ -106,6 +116,26 @@ agentalyze tasks
    там же. Верификатор смотрит только на финальный DOM — никогда на шаги агента.
 
 Задача становится доступной всем командам CLI сразу после записи в реестр.
+Пошаговый чек-лист для контрибьюторов — включая «как придумать задачу под
+конкретный failure mode» — вынесен в [`CONTRIBUTING.md`](CONTRIBUTING.md);
+шаблон предложения новой задачи лежит в
+[`.github/ISSUE_TEMPLATE/new_task_suite_case.md`](.github/ISSUE_TEMPLATE/new_task_suite_case.md).
+
+## Чем Agentalyze отличается от общих бенчмарков
+
+| | Agentalyze | AgentBench / WebArena / SWE-bench |
+| --- | --- | --- |
+| **Фокус** | узкий: веб-агент с инструментами на реальном Chromium | широкий/академический: десятки разнородных сред и датасетов |
+| **Задачи** | 18 рукописных, каждая целится в конкретный failure mode | тысячи автоматически собранных инстансов |
+| **Вердикт** | программный верификатор по финальному DOM — не самооценка модели | чаще эвристики/строковое сравнение ответа |
+| **Диагностика** | failure-таксономия: *почему* сломалось (looping, галлюцинация элемента, premature done…) | обычно бинарный success/fail |
+| **Калибровка** | ECE уверенности модели против верификатора | как правило отсутствует |
+| **Regression в CI** | diff двух прогонов с exit-кодами для гейта PR | не входит в задачу |
+
+Это не «лучше или хуже»: общие бенчмарки отвечают на вопрос «насколько силён
+агент вообще», Agentalyze — «что именно делает мой агент и моя модель, и не
+стало ли хуже после обновления». Второй вопрос существующие suite'ами
+закрываются плохо, а он-то и возникает в production каждую неделю.
 
 ## Providers
 
@@ -199,6 +229,12 @@ health-check; нездоровый провайдер прерывает ком�
 results/<suite_run_id>/suite_run.json   # машинночитаемая сводка + все трейсы
 results/<suite_run_id>/report.md        # человекочитаемый отчёт
 ```
+
+Полный пример сгенерированного отчёта (получен производственным конвейером
+на синтетических данных — реальная модель не вызывалась):
+[`examples/sample_report.md`](examples/sample_report.md). Обратите внимание
+на секцию «Honest conclusion»: лучший по success rate провайдер — не всегда
+правильный выбор, и отчёт вычисляет это расхождение сам.
 
 Пример фрагмента `report.md`:
 
@@ -343,8 +379,12 @@ src/agentalyze/
 └── regression/          # Фаза 6: diff прогонов, baseline, regression-check
 tests/                   # pytest; маркеры browser / requires_ollama / e2e_live
 fixtures/                # локальные HTML-фикстуры по категориям
-examples/                # исполняемый end-to-end сценарий (Docker + Ollama)
-.github/workflows/ci.yml # lint / test-fast / test-browser / docker-build
+examples/                # end-to-end сценарий (Docker + Ollama) + sample_report.md
+                         # с генератором generate_sample_report.py
+docs/assets/             # скриншоты CLI для README
+.github/workflows/       # ci.yml (lint/test/docker); regression-check.yml.example
+.github/ISSUE_TEMPLATE/  # шаблон предложения новой задачи для suite
+CONTRIBUTING.md          # как добавить новую задачу: чек-лист контрибьютора
 providers.example.yaml   # шаблон конфигурации провайдеров (без секретов)
 pricing.example.yaml     # шаблон таблицы цен для расчёта стоимости
 ```
@@ -353,6 +393,59 @@ pricing.example.yaml     # шаблон таблицы цен для расчё�
 `.env`): `AGENTALYZE_FIXTURES_DIR` (`./fixtures`), `AGENTALYZE_RESULTS_DIR`
 (`./results`), `AGENTALYZE_PROVIDERS_CONFIG_PATH` (`./providers.yaml`),
 `AGENTALYZE_LOG_LEVEL` (`INFO`).
+
+## Design decisions
+
+Шесть архитектурных решений, которые проще прочитать сразу, чем откапывать
+по коду (ссылки ведут на конкретные строки):
+
+1. **Верификатор — строго постфактум и только по DOM**
+   ([`tasks/verifiers.py:1–11`](src/agentalyze/tasks/verifiers.py#L1-L11)).
+   Верификатор получает уже открытый `Page` в финальном состоянии и отвечает
+   на один вопрос «достигнут ли ожидаемый DOM». Он никогда не смотрит шаги
+   агента: разбор *как* агент шёл к результату — задача отдельного слоя
+   таксономии отказов (Фаза 4). Это устраняет соблазн «верификации по
+   самооценке модели» на уровне типов.
+
+2. **OllamaProvider — обёртка, а не дублирование**
+   ([`providers/ollama.py:1–15`](src/agentalyze/providers/ollama.py#L1-L15)).
+   Современная Ollama совместима с OpenAI API по формату сообщений и
+   tool-calling'а, поэтому наследование от `OpenAICompatibleProvider` с
+   переопределением только `health_check` (проверяет `/api/tags` и наличие
+   конкретной модели локально) — осознанный выбор: дублировать маппинг было
+   бы architectural mistake.
+
+3. **Epsilon-коррекция бинов калибровки**
+   ([`analysis/calibration.py:27–34`](src/agentalyze/analysis/calibration.py#L27-L34)).
+   `0.29 * 10` в float — это `28.999…996`, и наивный `floor` уронил бы
+   значение в соседний бин. Сдвиг на `1e-12` перед floor чинит край бина,
+   оставаясь на много порядков меньше любого реального расстояния между
+   отчетаемыми confidences.
+
+4. **«Honest conclusion» считается программно, а не генерируется LLM**
+   ([`orchestration/report.py:8–14`](src/agentalyze/orchestration/report.py#L8-L14)
+   и [`83–89`](src/agentalyze/orchestration/report.py#L83-L89)).
+   Расхождение «лучший в таблице ≠ правильный выбор» вычисляется из чисел
+   этого прогона фиксированными шаблонами с детерминированным tie-break'ом.
+   Инструмент, смысл которого — честная отчётность, не может доверять выводы
+   языковой модели: это было бы одновременно иронично и ненадёжно.
+
+5. **Отчёт честен о статистике своих же цифр**
+   ([`report.py:28–31`](src/agentalyze/orchestration/report.py#L28-L31),
+   [`calibration.py:22–25`](src/agentalyze/analysis/calibration.py#L22-L25)).
+   Категория из <5 задач помечается предупреждением о малой выборке прямо в
+   таблице; ECE вообще не печатается, если непустых бинов меньше трёх —
+   «точность в одном бакете уверенности» не выдаётся за калибровку.
+
+6. **Suite-runner устойчив к сбоям и персистит инкрементально**
+   ([`orchestration/suite_runner.py:9–22`](src/agentalyze/orchestration/suite_runner.py#L9-L22)).
+   Комбинации идут строго последовательно (параллелизм — оптимизация, не
+   требование корректности), падение одной комбинации не роняет прогон,
+   а после каждой завершённой комбинации полный снапшот переписывается на
+   диск: крах на середине многочасового прогона не теряет часы результатов.
+
+Бонусом — почему перцентили считаются nearest-rank, а не интерполяцией:
+[`analysis/metrics.py:68–78`](src/agentalyze/analysis/metrics.py#L68-L78).
 
 ## Roadmap / Status
 
