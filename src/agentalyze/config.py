@@ -65,4 +65,3 @@ class Settings(BaseSettings):
         """Create ``results_dir`` if it does not exist and return it."""
         self.results_dir.mkdir(parents=True, exist_ok=True)
         return self.results_dir
-
