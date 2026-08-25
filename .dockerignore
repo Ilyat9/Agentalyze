@@ -1,0 +1,42 @@
+# Keep the build context minimal: the runtime image needs only
+# pyproject.toml, README.md, LICENSE.md, src/, fixtures/ and the two
+# example YAML files. Everything else is noise (or secrets).
+
+# VCS / CI
+.git/
+.github/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets and local env overrides — NEVER enter the image
+.env
+.env.*
+
+# Run artifacts (results belong on a mounted volume, not in the image)
+results/
+
+# Tests: NOT needed in the runtime image. They are also not executed as part
+# of the build (no test step in the Dockerfile): tests need the dev extra and
+# a working pytest invocation, and CI already runs them natively on GitHub
+# runners (jobs `test-fast` / `test-browser`), which gives better caching and
+# clearer failure reports than shoving them into a docker build layer.
+tests/
+
+# Examples / docs not required at runtime (README.md IS required — setuptools
+# reads it as the package long description).
+examples/
+ROADMAP.md
+KNOWN_LIMITATIONS.md
