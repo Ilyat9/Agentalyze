@@ -197,6 +197,42 @@ class TestFailureModes:
         assert trace.outcome is RunOutcome.FAILURE_TIMEOUT
         assert trace.wall_clock_seconds < 4  # did NOT wait for the full sleep
 
+    async def test_unhandled_provider_exception_becomes_crash(
+        self, runner_settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A provider violating its contract (non-ProviderError) must not kill the runner."""
+        task = TASKS_BY_ID["nav-simple-link-01"]
+
+        class BrokenContractProvider(FakeProvider):
+            async def chat_completion(self, messages, tools=None, temperature=0.0, max_tokens=None):
+                raise ValueError("provider SDK exploded unexpectedly")
+
+        trace = await run_task(task, BrokenContractProvider([]), runner_settings)
+
+        assert trace.outcome is RunOutcome.FAILURE_CRASH
+        assert trace.error is not None
+        assert "ValueError" in trace.error and "exploded" in trace.error  # full traceback kept
+
+    async def test_unhandled_tool_exception_becomes_tool_error(
+        self, runner_settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unexpected exception from a tool implementation aborts with FAILURE_TOOL_ERROR."""
+        import agentalyze.runner.react_loop as react_loop_module
+
+        task = TASKS_BY_ID["nav-simple-link-01"]
+        provider = FakeProvider([_assistant_with_call("c1", "click", element_id="e1")])
+
+        async def exploding_execute_tool(ctx, call):
+            raise RuntimeError("simulated bug inside a tool implementation")
+
+        monkeypatch.setattr(react_loop_module, "execute_tool", exploding_execute_tool)
+
+        trace = await run_task(task, provider, runner_settings)
+
+        assert trace.outcome is RunOutcome.FAILURE_TOOL_ERROR
+        assert trace.error is not None and "RuntimeError" in trace.error
+        assert trace.steps[0].tool_error is not None
+
 class TestFormFillSuccess:
     async def test_scripted_agent_fills_and_submits_form(self, runner_settings: Settings) -> None:
         """A multi-action scripted run on form-fill-basic-01 (max_steps budget respected)."""
