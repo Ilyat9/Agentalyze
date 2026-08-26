@@ -5,14 +5,14 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](pyproject.toml)
 [![mypy](https://img.shields.io/badge/mypy-strict-blue)](.github/workflows/ci.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-217%20passing-brightgreen)](.github/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-232%20passing-brightgreen)](.github/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
-![Task suite](https://img.shields.io/badge/task%20suite-18%20tasks%20·%206%20categories%20·%209%20verifiers-8a63d2)
+![Task suite](https://img.shields.io/badge/task%20suite-30%20tasks%20·%206%20categories%20·%2012%20verifiers-8a63d2)
 
 ![agentalyze CLI в действии](docs/assets/cli-tasks.svg)
 
 Eval harness for LLM agents working with tools and a real browser. Вместо
-абстрактных бенчмарков — suite из 18 конкретных агентных веб-задач
+абстрактных бенчмарков — suite из 30 конкретных агентных веб-задач
 (заполнение форм, извлечение фактов с уверенностью, восстановление после
 ошибок) на локальных HTML-фикстурах и реальном Chromium. Главный вопрос —
 не «какой success rate», а **где именно ломается агент**: неверный выбор
@@ -88,7 +88,7 @@ agentalyze run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 ```mermaid
 flowchart TB
     subgraph PH1["tasks"]
-        T["Реестр 18 задач<br/>HTML-фикстуры + fixture-сервер<br/>программные верификаторы (финальный DOM)"]
+        T["Реестр 30 задач<br/>HTML-фикстуры + fixture-сервер<br/>программные верификаторы (финальный DOM)"]
     end
     subgraph PH2["providers"]
         P["OpenAI-совместимый API / Ollama<br/>retry (tenacity) · health-check"]
@@ -113,15 +113,21 @@ flowchart TB
 
 ## Task suite
 
-**18 задач, 6 категорий**, каждая категория целится в конкретный режим отказа:
+**30 задач, 6 категорий** (по 5 в каждой), каждая категория целится в
+конкретный режим отказа:
 `navigation`, `form_fill`, `extraction`, `multi_step`, `error_recovery`,
 `distractor` (заманивалки: элементы, похожие на цель, но ею не являющиеся).
 
 Полный список с идентификаторами:
 
 ```bash
-agentalyze tasks
+agentalyze tasks                                # все задачи
+agentalyze tasks --tag looping                  # только задачи, «ловящие» зацикливание
 ```
+
+Каждая задача несёт поле `expected_failure_modes` (теги из failure-таксономии)
+— структурированный аналог её комментария «Reveals: …»; флаг `--tag`
+фильтрует индекс по нему.
 
 Как добавить новую задачу (три шага):
 
@@ -148,7 +154,7 @@ agentalyze tasks
 | | Agentalyze | AgentBench / WebArena / SWE-bench |
 | --- | --- | --- |
 | **Фокус** | узкий: веб-агент с инструментами на реальном Chromium | широкий/академический: десятки разнородных сред и датасетов |
-| **Задачи** | 18 рукописных, каждая целится в конкретный failure mode | тысячи автоматически собранных инстансов |
+| **Задачи** | 30 рукописных, каждая целится в конкретный failure mode | тысячи автоматически собранных инстансов |
 | **Вердикт** | программный верификатор по финальному DOM — не самооценка модели | чаще эвристики/строковое сравнение ответа |
 | **Диагностика** | failure-таксономия: *почему* сломалось (looping, галлюцинация элемента, premature done…) | обычно бинарный success/fail |
 | **Калибровка** | ECE уверенности модели против верификатора | как правило отсутствует |
@@ -242,10 +248,11 @@ agentalyze compare --tasks nav-simple-link-01,form-fill-basic-01 --providers lla
 ```
 
 Прогон идёт строго последовательно (комбинация «задача × провайдер» за
-комбинацией), каждый трейс сохраняется на диск сразу — сбой в середине не
-теряет готовые результаты. Перед стартом каждый провайдер проходит
-health-check; нездоровый провайдер прерывает команду с явной ошибкой.
-По завершении пишутся:
+комбинацией); начиная со второй комбинации строка прогресса показывает ETA —
+простую линейную экстраполяцию по уже завершённым комбинациям. Каждый трейс
+сохраняется на диск сразу — сбой в середине не теряет готовые результаты.
+Перед стартом каждый провайдер проходит health-check; нездоровый провайдер
+прерывает команду с явной ошибкой. По завершении пишутся:
 
 ```
 results/<suite_run_id>/suite_run.json   # машинночитаемая сводка + все трейсы
@@ -254,7 +261,10 @@ results/<suite_run_id>/report.md        # человекочитаемый от�
 
 Полный пример сгенерированного отчёта (получен производственным конвейером
 на синтетических данных — реальная модель не вызывалась):
-[`examples/sample_report.md`](examples/sample_report.md). Обратите внимание
+[`examples/sample_report.md`](examples/sample_report.md). Рядом лежит
+[`examples/real_run_report.md`](examples/real_run_report.md) — отчёт
+**реального** прогона полного suite'а на локальной Ollama
+(`qwen2.5:7b-instruct`, MacBook Air M2). Обратите внимание
 на секцию «Honest conclusion»: лучший по success rate провайдер — не всегда
 правильный выбор, и отчёт вычисляет это расхождение сам.
 
@@ -265,8 +275,8 @@ results/<suite_run_id>/report.md        # человекочитаемый от�
 
 | Provider | Tasks | Success rate | Avg cost / task | Avg steps | p50 latency | p95 latency |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `gpt-4o-mini-via-openrouter` | 18 | 83% | $0.0042 | 6.1 | 2.8s | 11.4s |
-| `llama31-8b-local`           | 18 | 44% | $0.0000 | 11.7 | 5.9s | 24.3s |
+| `gpt-4o-mini-via-openrouter` | 30 | 83% | $0.0042 | 6.1 | 2.8s | 11.4s |
+| `llama31-8b-local`           | 30 | 44% | $0.0000 | 11.7 | 5.9s | 24.3s |
 
 > Стоимость `$0.0000` — это честный ноль локальной модели, а не «неизвестная цена».
 
@@ -307,6 +317,14 @@ agentalyze regression-check --baseline <baseline_suite_run_id> --new <new_suite_
 | `2` | проблема конфигурации (неизвестный run id, baseline не задан) |
 
 Отчёт сохраняется в `results/<new_suite_run_id>/regression_report.json`.
+
+Исторически шумные задачи (флейки верификатора, чувствительные к таймингу
+фикстуры) можно исключить из подсчёта регрессий опциональным файлом
+`regression.yaml` (шаблон — [`regression.example.yaml`](regression.example.yaml)):
+пары таких задач остаются в diff с явной пометкой «excluded from gate», но не
+влияют на `regressed_count` и код возврата. Файл не обязателен: без него
+гейт работает как раньше. Путь можно переопределить флагом `--regression-config`
+или переменной `AGENTALYZE_REGRESSION_CONFIG_PATH`.
 
 Готовый шаблон workflow для pull request —
 [`.github/workflows/regression-check.yml.example`](.github/workflows/regression-check.yml.example).
@@ -393,7 +411,7 @@ pytest                                                            # = первы
 ```
 src/agentalyze/
 ├── config.py            # Settings (pydantic-settings, env AGENTALYZE_*)
-├── tasks/               # реестр 18 задач, фикстур-сервер, верификаторы
+├── tasks/               # реестр 30 задач, фикстур-сервер, верификаторы
 ├── providers/           # openai_compatible + ollama, factory, retry
 ├── runner/              # ReAct-цикл, browser-инструменты, трейс, CLI
 ├── analysis/            # failure-таксономия, метрики, калибровка, цены
