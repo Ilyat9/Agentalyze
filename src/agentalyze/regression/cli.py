@@ -24,10 +24,13 @@ from agentalyze.config import Settings
 from agentalyze.regression.config import RegressionConfigError, load_regression_config
 from agentalyze.regression.diff import TaskDiff, TaskDiffStatus, compute_regression
 from agentalyze.regression.storage import (
+    AutoBaselineNotFoundError,
     BaselineNotSetError,
     SuiteRunNotFoundError,
+    find_last_clean_baseline,
     get_current_baseline,
     load_saved_suite_run,
+    record_gate_outcome,
     require_current_baseline,
     save_regression_report,
     set_baseline,
@@ -69,12 +72,23 @@ def _print_diff_line(diff: TaskDiff, settings: Settings) -> None:
 
 def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
     """`agentalyze regression-check`: diff two runs; exit 1 on regressions."""
+    baseline_arg = (args.baseline or "").strip()
     try:
-        baseline_id = (
-            args.baseline.strip()
-            if args.baseline
-            else require_current_baseline(settings.results_dir)
-        )
+        if baseline_arg.lower() == "auto":
+            # OPT-IN convenience: newest run whose recorded gate outcome was
+            # clean. NOT a replacement for an explicit baseline in CI — see
+            # README ("Automatic baseline").
+            try:
+                baseline_id = find_last_clean_baseline(settings.results_dir)
+                print(f"Auto baseline resolved to suite run {baseline_id} "
+                      "(newest clean gated run).")
+            except AutoBaselineNotFoundError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+        elif baseline_arg:
+            baseline_id = baseline_arg
+        else:
+            baseline_id = require_current_baseline(settings.results_dir)
     except BaselineNotSetError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -96,6 +110,13 @@ def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
 
     report = compute_regression(baseline, new, excluded_task_ids=excluded_ids)
     report_path = save_regression_report(report, settings.results_dir)
+    # Record the gate outcome for --baseline auto: the FACT of this comparison
+    # (clean or not), regardless of --allow-regressions. Never moves the
+    # pointer by itself.
+    record_gate_outcome(
+        settings.results_dir, report.new_suite_run_id,
+        was_clean=report.regressed_count == 0,
+    )
 
     # ------------------------ human-readable summary -------------------------
     print("=" * 70)
@@ -195,7 +216,10 @@ def register_parsers(
     check_parser.add_argument(
         "--baseline", default=None,
         help=("Baseline suite_run_id. Omit to use the baseline marked via "
-              "`agentalyze set-baseline`."),
+              "`agentalyze set-baseline`. The special value 'auto' picks the "
+              "newest run whose last regression-check was clean (opt-in "
+              "convenience; explicit baselines remain the recommended choice "
+              "for CI gates)."),
     )
     check_parser.add_argument(
         "--new", required=True,
