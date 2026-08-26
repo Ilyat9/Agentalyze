@@ -126,6 +126,44 @@ def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def _cmd_diff_trace(
+    baseline_run_id: str, new_run_id: str, settings: Settings, output_path: str | None
+) -> int:
+    """`agentalyze inspect --diff-trace`: structural diff of two traces."""
+    from agentalyze.regression.trace_diff import compare_traces, render_trace_diff
+    from agentalyze.runner.trace import load_trace
+
+    traces = []
+    for run_id in (baseline_run_id, new_run_id):
+        path = Path(settings.results_dir) / run_id / "trace.json"
+        if not path.is_file():
+            print(
+                f"error: no trace found for run {run_id!r} "
+                f"(expected {path}). Run ids are the per-combination trace "
+                "ids shown by `agentalyze inspect --suite-run <suite_run_id>`.",
+                file=sys.stderr,
+            )
+            return 2
+        traces.append(load_trace(path))
+
+    try:
+        diff = compare_traces(traces[0], traces[1])
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    report = render_trace_diff(diff)
+    print(report)
+
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report + "\n", encoding="utf-8")
+        print(f"\nTrace diff saved to: {out}")
+    # Diffing is a reporting operation, not a gate: always exit 0.
+    return 0
+
+
 def _parse_tag(raw: str) -> FailureTag | None:
     try:
         return FailureTag(raw.lower().strip())
@@ -145,7 +183,17 @@ def _parse_outcome(raw: str) -> RunOutcome | None:
 
 
 def cmd_inspect(args: argparse.Namespace, settings: Settings) -> int:
-    """`agentalyze inspect`: find interesting traces of one suite run."""
+    """`agentalyze inspect`: list traces of a suite run OR deep-diff two traces."""
+    diff_trace = getattr(args, "diff_trace", None)
+    if diff_trace:
+        return _cmd_diff_trace(diff_trace[0], diff_trace[1], settings,
+                               getattr(args, "output", None))
+
+    if not getattr(args, "suite_run", None):
+        print("error: either --suite-run <id> or --diff-trace <base> <new> "
+              "is required.", file=sys.stderr)
+        return 2
+
     try:
         result = load_suite_run(settings.results_dir, args.suite_run)
     except FileNotFoundError:
@@ -228,10 +276,26 @@ def register_parsers(
 
     inspect_parser = subparsers.add_parser(
         "inspect",
-        help="List traces of a finished suite run by failure tag or outcome.",
+        help=("List traces of a finished suite run by failure tag or outcome; "
+              "or structurally diff two traces with --diff-trace."),
     )
-    inspect_parser.add_argument("--suite-run", required=True,
+    inspect_parser.add_argument("--suite-run", required=False, default=None,
                                 help="suite_run_id of a finished `compare` run.")
+    inspect_parser.add_argument(
+        "--diff-trace",
+        nargs=2,
+        metavar=("BASELINE_RUN_ID", "NEW_RUN_ID"),
+        default=None,
+        help=("Structural diff of two individual traces (run ids from "
+              "`inspect --suite-run`): aligned by step, reporting tool/result/"
+              "DOM-state changes and the FIRST divergent step. Same (task, "
+              "provider) pair only."),
+    )
+    inspect_parser.add_argument(
+        "--output",
+        default=None,
+        help="With --diff-trace: also save the report to this file.",
+    )
     inspect_parser.add_argument("--tag", default=None,
                                 help="FailureTag value, e.g. looping.")
     inspect_parser.add_argument("--outcome", default=None,
