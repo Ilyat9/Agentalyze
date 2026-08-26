@@ -107,6 +107,7 @@ def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
             task_ids=_split_csv(args.tasks) if args.tasks else None,
             provider_names=provider_names,
             category_filter=_parse_categories(args.category) if args.category else None,
+            max_concurrent=args.max_concurrent,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -211,6 +212,15 @@ def register_parsers(
     compare_parser.add_argument(
         "--providers", required=True,
         help="Comma-separated provider names from providers.yaml.",
+    )
+    compare_parser.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=1,
+        help=("How many (task x provider) combinations to run at the same time "
+              "(default: 1 = strictly sequential). Each in-flight combination "
+              "holds a real Chromium instance and open provider connections, "
+              "so raise this only within your resource budget."),
     )
     compare_parser.add_argument("--providers-config", default=None)
     compare_parser.add_argument("--results-dir", default=None)

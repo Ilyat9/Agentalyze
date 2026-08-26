@@ -8,10 +8,18 @@ provider — cross-provider aggregation stays out of the analysis layer).
 
 Deliberate properties of this implementation:
 
-* **Sequential.** Combinations run one after another. Parallelism is a
-  performance optimization, not a correctness requirement, and is
-  explicitly OUT of scope for this phase: ``max_concurrent > 1`` raises a
-  clear error instead of being silently ignored.
+* **Sequential by default, optionally bounded-parallel.** ``max_concurrent``
+  defaults to 1, which keeps the original strictly sequential behavior.
+  Values above 1 run combinations concurrently behind an
+  ``asyncio.Semaphore``: at most ``max_concurrent`` combinations are
+  in flight at any moment. The bound is load-bearing, not cosmetic — every
+  combination owns a real Chromium instance and a fixture server, so an
+  unbounded ``gather`` would multiply browser processes and open provider
+  connections without limit. Isolation is guaranteed by ``run_task``'s own
+  contract: each combination starts its OWN ``FixtureServer`` on an
+  OS-assigned free port, its own browser + context, and writes artifacts
+  under its own unique ``{results_dir}/{run_id}/`` directory, so parallel
+  combinations share no mutable state.
 * **Crash-tolerant.** One combination failing (an exception escaping
   ``run_task`` — the runner itself converts its internal crashes into
   ``FAILURE_CRASH`` traces) logs the problem and continues with the next
@@ -19,7 +27,13 @@ Deliberate properties of this implementation:
 * **Incrementally persisted.** After EVERY completed combination the full
   ``SuiteRunResult`` snapshot (traces collected so far + fresh metrics)
   is rewritten to ``{results_dir}/{suite_run_id}/suite_run.json``. A crash
-  halfway through a multi-hour run must not lose hours of results.
+  halfway through a multi-hour run must not lose hours of results. In
+  parallel mode several coroutines can finish at once, so the
+  read-modify-write of the shared snapshot is serialized with an
+  ``asyncio.Lock`` — an append-only log would be a storage-format change
+  serving the same purpose; the lock keeps the existing format and readers
+  unchanged while making concurrent completion safe (all work runs on one
+  event loop thread, so the lock fully closes the race window).
 """
 
 from __future__ import annotations
@@ -81,8 +95,13 @@ class SuiteRunConfig(BaseModel):
     )
     provider_names: list[str] = Field(min_length=1)
     category_filter: list[TaskCategory] | None = None
-    #: Reserved for future parallel execution. MUST stay 1 in this phase:
-    #: run_suite rejects any other value instead of silently ignoring it.
+    #: How many (task x provider) combinations may run at the same time.
+    #: 1 (the default) = strictly sequential, the historically safe behavior.
+    #: Values above 1 run combinations concurrently behind an
+    #: ``asyncio.Semaphore``; every combination stays fully isolated (own
+    #: browser, own fixture server, own artifact directory), but each in-flight
+    #: combination holds a real Chromium instance and provider connections,
+    #: so raise this with resource cost in mind.
     max_concurrent: int = Field(default=1, ge=1)
 
     @field_validator("provider_names")
@@ -171,7 +190,7 @@ async def run_suite(
     providers: dict[str, Provider],
     settings: Settings,
 ) -> SuiteRunResult:
-    """Run every selected task with every selected provider, sequentially.
+    """Run every selected task with every selected provider.
 
     Progress is printed to stdout as ``[i/N] task=... provider=... -> outcome``.
     From the second combination on, the progress prefix carries an ETA — a
@@ -181,21 +200,16 @@ async def run_suite(
     persisted, so an interrupted run keeps everything finished up to that
     point.
 
-    Raises:
-        ValueError: on ``config.max_concurrent > 1`` (parallelism is NOT
-            implemented in this phase — fail loudly instead of pretending
-            the knob works), unknown provider or task names, or an empty
-            resolved task selection.
-    """
-    if config.max_concurrent != 1:
-        msg = (
-            f"max_concurrent={config.max_concurrent} is not supported: parallel "
-            "execution is not implemented in this phase — Phase 5 runs "
-            "combinations strictly sequentially. The parameter is reserved for "
-            "the future; pass max_concurrent=1."
-        )
-        raise ValueError(msg)
+    With ``max_concurrent == 1`` (the default) combinations run strictly one
+    after another. Larger values run up to ``max_concurrent`` combinations at
+    once behind an :class:`asyncio.Semaphore`; the shared snapshot is then
+    updated under an :class:`asyncio.Lock` so concurrent completions can never
+    interleave a read-modify-write of the persisted file.
 
+    Raises:
+        ValueError: on unknown provider or task names, or an empty resolved
+            task selection.
+    """
     missing_providers = [name for name in config.provider_names if name not in providers]
     if missing_providers:
         available = ", ".join(sorted(providers)) or "<none>"
@@ -226,15 +240,48 @@ async def run_suite(
     #: linear ETA extrapolation below (simple average, no smoothing needed).
     completed_durations: list[float] = []
 
+    if config.max_concurrent == 1:
+        await _run_all_sequential(combinations, result, settings, total,
+                                  completed_durations)
+    else:
+        await _run_all_parallel(combinations, result, settings, total,
+                                config.max_concurrent, completed_durations)
+
+    duration = (result.finished_at - result.started_at).total_seconds()
+    print(f"Suite run {result.suite_run_id} finished: "
+          f"{len(result.traces)}/{total} combination(s) completed in {duration:.1f}s",
+          flush=True)
+    return result
+
+
+def _eta_prefix(completed_durations: list[float], index: int, total: int) -> str:
+    if not completed_durations:
+        return ""
+    avg_seconds = sum(completed_durations) / len(completed_durations)
+    eta_seconds = avg_seconds * (total - index + 1)
+    return f" (eta ~{_format_eta(eta_seconds)} left)"
+
+
+async def _persist_snapshot(result: SuiteRunResult, settings: Settings) -> None:
+    """Refresh metrics + finished_at and rewrite the on-disk snapshot."""
+    # finished_at tracks "as of this snapshot" on every intermediate save.
+    result.finished_at = datetime.now(UTC)
+    result.metrics_by_provider = _metrics_snapshot(result.traces)
+    save_suite_run(result, settings.results_dir)
+
+
+async def _run_all_sequential(
+    combinations: list[tuple[Task, Provider]],
+    result: SuiteRunResult,
+    settings: Settings,
+    total: int,
+    completed_durations: list[float],
+) -> None:
+    """The original strictly sequential path (``max_concurrent == 1``)."""
     for index, (task, provider) in enumerate(combinations, start=1):
-        eta_prefix = ""
-        if completed_durations:
-            avg_seconds = sum(completed_durations) / len(completed_durations)
-            eta_seconds = avg_seconds * (total - index + 1)
-            eta_prefix = f" (eta ~{_format_eta(eta_seconds)} left)"
         print(
-            f"[{index}/{total}]{eta_prefix} task={task.id} "
-            f"provider={provider.name} ... ",
+            f"[{index}/{total}]{_eta_prefix(completed_durations, index, total)} "
+            f"task={task.id} provider={provider.name} ... ",
             end="",
             flush=True,
         )
@@ -250,23 +297,73 @@ async def run_suite(
             logger.exception("combination task=%s provider=%s crashed", task.id,
                              provider.name)
             print(f"CRASHED: {exc}", flush=True)
-            continue
+        else:
+            result.traces.append(trace)
+            await _persist_snapshot(result, settings)
+            print(f"{trace.outcome.value} ({trace.wall_clock_seconds:.1f}s)", flush=True)
         finally:
             # Crashed combinations still consumed wall-clock time; counting
             # them keeps the ETA honest for suites where several combos fail.
             completed_durations.append(time.monotonic() - combo_started)
 
-        result.traces.append(trace)
-        # finished_at tracks "as of this snapshot" on every intermediate save.
-        result.finished_at = datetime.now(UTC)
-        result.metrics_by_provider = _metrics_snapshot(result.traces)
-        save_suite_run(result, settings.results_dir)
-        print(f"{trace.outcome.value} ({trace.wall_clock_seconds:.1f}s)", flush=True)
 
-    duration = (result.finished_at - result.started_at).total_seconds()
-    print(f"Suite run {result.suite_run_id} finished: "
-          f"{len(result.traces)}/{total} combination(s) completed in {duration:.1f}s",
-          flush=True)
-    return result
+async def _run_all_parallel(
+    combinations: list[tuple[Task, Provider]],
+    result: SuiteRunResult,
+    settings: Settings,
+    total: int,
+    max_concurrent: int,
+    completed_durations: list[float],
+) -> None:
+    """Bounded-parallel path (``max_concurrent > 1``).
+
+    The semaphore caps the number of in-flight combinations — each holds a
+    real Chromium instance, a fixture server thread and open connections to
+    the provider, so an unbounded ``gather`` would multiply all three without
+    limit. The lock serializes the shared-snapshot read-modify-write when
+    several coroutines finish at once. Everything runs on a single event loop
+    thread: plain list appends elsewhere are safe without synchronization.
+
+    Isolation across combinations needs no extra machinery here because it is
+    ``run_task``'s own contract: per-combination fixture server (OS-assigned
+    free port), browser + context, and artifacts under a unique run_id
+    directory. Parallel combinations share no mutable state.
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
+    save_lock = asyncio.Lock()
+
+    async def worker(index: int, task: Task, provider: Provider) -> None:
+        async with semaphore:
+            print(
+                f"[{index}/{total}] START task={task.id} provider={provider.name}",
+                flush=True,
+            )
+            combo_started = time.monotonic()
+            try:
+                trace = await run_task(task, provider, settings)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception("combination task=%s provider=%s crashed", task.id,
+                                 provider.name)
+                print(f"[{index}/{total}] CRASHED: task={task.id} "
+                      f"provider={provider.name}: {exc}", flush=True)
+                return
+            finally:
+                completed_durations.append(time.monotonic() - combo_started)
+
+            async with save_lock:
+                result.traces.append(trace)
+                await _persist_snapshot(result, settings)
+            print(
+                f"[{index}/{total}] DONE task={task.id} provider={provider.name}"
+                f" -> {trace.outcome.value} ({trace.wall_clock_seconds:.1f}s)",
+                flush=True,
+            )
+
+    await asyncio.gather(
+        *(worker(index, task, provider)
+          for index, (task, provider) in enumerate(combinations, start=1))
+    )
 
 
