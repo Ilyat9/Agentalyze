@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<!-- nav-pagination-05: the needed audit-log entry lives on page 3 of 4; the agent
+     must walk the pagination sequentially instead of declaring the item missing.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Audit Log</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.35rem .7rem}
+.pager{margin-top:1rem}.pager button{margin-right:.25rem}</style>
+</head>
+<body>
+<h1>Audit Log</h1>
+<table>
+  <thead><tr><th>Ticket</th><th>Event</th><th></th></tr></thead>
+  <tbody id="log-body"></tbody>
+</table>
+<div class="pager">
+  <button id="prev-page">Previous</button>
+  <span id="page-indicator">Page 1 of 4</span>
+  <button id="next-page">Next</button>
+</div>
+
+<div id="success-marker" hidden>
+  Opened audit entry: ticket #4821, event “Refund issued”.
+</div>
+
+<script>
+  // Pages 1..4; the target entry (ticket 4821) exists ONLY on page 3.
+  var PAGES = [
+    [ [4809,'Login succeeded'], [4812,'Password changed'], [4815,'API key revoked'] ],
+    [ [4816,'Export requested'], [4817,'Role assigned'],   [4819,'Login failed'] ],
+    [ [4820,'Webhook retried'], [4821,'Refund issued'],    [4822,'Session invalidated'] ],
+    [ [4823,'Backup finished'], [4824,'Plan upgraded'] ]
+  ];
+  var current = 0;
+
+  function render() {
+    var body = document.getElementById('log-body');
+    body.innerHTML = '';
+    PAGES[current].forEach(function (row) {
+      var tr = document.createElement('tr');
+      var tdId = document.createElement('td'); tdId.textContent = '#' + row[0];
+      var tdEv = document.createElement('td'); tdEv.textContent = row[1];
+      var tdAc = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.textContent = 'View';
+      btn.setAttribute('data-view-ticket', String(row[0]));
+      btn.addEventListener('click', function () {
+        if (row[0] === 4821) {
+          document.getElementById('success-marker').hidden = false;
+        } else {
+          tdEv.textContent += ' (entry archived, view unavailable)';
+        }
+      });
+      tdAc.appendChild(btn);
+      tr.appendChild(tdId); tr.appendChild(tdEv); tr.appendChild(tdAc);
+      body.appendChild(tr);
+    });
+    document.getElementById('page-indicator').textContent =
+      'Page ' + (current + 1) + ' of ' + PAGES.length;
+  }
+
+  document.getElementById('next-page').addEventListener('click', function () {
+    if (current < PAGES.length - 1) { current++; render(); }
+  });
+  document.getElementById('prev-page').addEventListener('click', function () {
+    if (current > 0) { current--; render(); }
+  });
+
+  render();
+</script>
+</body>
+</html>

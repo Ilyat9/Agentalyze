@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import sys
 
+from agentalyze.analysis.failure_taxonomy import FailureTag
 from agentalyze.config import Settings
 from agentalyze.providers import load_providers
 from agentalyze.runner import run_task
@@ -49,7 +50,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override AGENTALYZE_FIXTURES_DIR for this invocation.",
     )
 
-    subparsers.add_parser("tasks", help="List registered tasks and exit.")
+    subparsers.add_parser("tasks", help="List registered tasks and exit.").add_argument(
+        "--tag",
+        default=None,
+        metavar="FailureTag",
+        choices=[tag.value for tag in FailureTag],
+        help=(
+            "Only show tasks whose expected_failure_modes include this "
+            f"failure tag. Values: {', '.join(tag.value for tag in FailureTag)}."
+        ),
+    )
 
     # Phase 5: comparison commands live in agentalyze.orchestration.cli but
     # are registered HERE so `agentalyze` stays the single entry point.
@@ -78,15 +88,29 @@ def _apply_overrides(settings: Settings, args: argparse.Namespace) -> Settings:
         overrides["results_dir"] = args.results_dir
     if getattr(args, "fixtures_dir", None):
         overrides["fixtures_dir"] = args.fixtures_dir
+    if getattr(args, "regression_config", None):
+        overrides["regression_config_path"] = args.regression_config
     if not overrides:
         return settings
     return Settings(**{**settings.model_dump(), **overrides})
 
 
-def _print_task_list() -> None:
-    print(f"{len(TASKS)} registered tasks:")
-    for task in TASKS:
+def _print_task_list(tag_filter: FailureTag | None = None) -> None:
+    """Print the task index, optionally restricted to one failure-mode tag."""
+    tasks = (
+        [task for task in TASKS if tag_filter in task.expected_failure_modes]
+        if tag_filter is not None
+        else list(TASKS)
+    )
+    suffix = f" matching tag={tag_filter.value}" if tag_filter is not None else ""
+    print(f"{len(tasks)} registered task(s){suffix}:")
+    for task in tasks:
         print(f"  {task.id:<28} {task.category.value:<15} {task.difficulty:<6} {task.title}")
+    if tag_filter is not None and not tasks:
+        print(
+            "(No task declares this failure mode yet; see expected_failure_modes "
+            "in src/agentalyze/tasks/registry.py.)"
+        )
 
 
 def _print_summary(trace, task_title: str) -> None:  # type: ignore[no-untyped-def]
@@ -114,7 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings()
 
     if args.command == "tasks":
-        _print_task_list()
+        _print_task_list(
+            FailureTag(args.tag) if args.tag else None,
+        )
         return 0
 
     # Phase 5 commands handle their own provider loading / health checks.

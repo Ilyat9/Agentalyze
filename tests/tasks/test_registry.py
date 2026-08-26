@@ -12,8 +12,11 @@ from agentalyze.tasks.verifiers import VERIFIERS
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 
 
-def test_suite_has_between_15_and_20_tasks() -> None:
-    assert 15 <= len(TASKS) <= 20
+def test_suite_has_at_least_30_tasks() -> None:
+    # Grew from 18 to 30 (2+ new tasks per category); the lower bound guards
+    # against accidental registry truncation, the upper bound keeps the suite
+    # hand-auditable rather than generated.
+    assert 30 <= len(TASKS) <= 40
 
 
 def test_task_ids_are_unique_and_kebab_case() -> None:

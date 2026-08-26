@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!-- extract-api-version-05: the current stable API version sits in a definition list
+     while prose around it mentions distractor versions (minimum supported, beta).
+     Success markers recorded by JS: #answer-recorded (+ #recorded-answer/#recorded-confidence) -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Acme API Portal</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+dl dt{font-weight:bold;margin-top:.6rem}</style>
+</head>
+<body>
+<h1>Acme Public API</h1>
+<p>The Acme API has been publicly available since version 1.0.0 (2023).
+   Installations still running versions below the minimum supported release
+   receive limited support only.</p>
+
+<dl id="release-facts">
+  <dt>Current stable API version</dt>
+  <dd>2.4.1</dd>
+  <dt>Minimum supported API version</dt>
+  <dd>1.9.0</dd>
+  <dt>Authentication scheme</dt>
+  <dd>Bearer tokens</dd>
+  <dt>Rate limit</dt>
+  <dd>600 requests/min</dd>
+</dl>
+
+<p>Roadmap note: beta builds of the upcoming 3.0.0-rc2 are shared with design
+   partners; they are NOT part of the public stable API.</p>
+
+<h2>Submit your answer</h2>
+<form id="answer-form">
+  <label>Answer (version string): <input id="answer-value" type="text"></label>
+  <label>Confidence (0..1): <input id="answer-confidence" type="text"></label>
+  <button id="submit-answer" type="submit">Submit answer</button>
+</form>
+<div id="answer-recorded" hidden>
+  Recorded answer: <span id="recorded-answer"></span>,
+  confidence: <span id="recorded-confidence"></span>
+</div>
+<script>
+  document.getElementById('answer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = document.getElementById('answer-value').value.trim();
+    var c = document.getElementById('answer-confidence').value.trim();
+    if (!v || !c) return;
+    document.getElementById('recorded-answer').textContent = v;
+    document.getElementById('recorded-confidence').textContent = c;
+    document.getElementById('answer-recorded').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

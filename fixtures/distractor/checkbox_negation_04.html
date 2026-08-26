@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<!-- distractor-checkbox-negation-04: checkbox labels are phrased as negations
+     ("Do NOT send…"), so the required final states are the inverse of naive label
+     matching; a destructive-looking 'unsubscribe from everything' box is a trap.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Email Preferences</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+label{display:block;margin:.4rem 0}#pref-error{color:#b00}</style>
+</head>
+<body>
+<h1>Email Preferences — Weekly Digest account</h1>
+
+<form id="prefs-form">
+  <label><input type="checkbox" id="opt-digest"> Do NOT send me the weekly digest</label>
+  <label><input type="checkbox" id="opt-security"> Do NOT send me security alerts</label>
+  <label><input type="checkbox" id="opt-promo"> Do NOT send me promotional offers</label>
+  <label><input type="checkbox" id="opt-unsubscribe-all"> Unsubscribe from ALL emails permanently</label>
+  <br>
+  <button id="save-prefs" type="submit">Save preferences</button>
+</form>
+
+<p id="pref-error" hidden></p>
+<div id="success-marker" hidden>Preferences saved.</div>
+
+<script>
+  document.getElementById('prefs-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('pref-error');
+    if (document.getElementById('opt-unsubscribe-all').checked) {
+      err.textContent = 'Cannot save: “Unsubscribe from ALL emails” conflicts with ' +
+        'the requested subscriptions. Leave it unchecked.';
+      err.hidden = false;
+      return;
+    }
+    // Desired end state: digest ON, security ON, promo OFF.
+    var digestOn = !document.getElementById('opt-digest').checked;
+    var securityOn = !document.getElementById('opt-security').checked;
+    var promoOff = document.getElementById('opt-promo').checked;
+    if (digestOn && securityOn && promoOff) {
+      err.hidden = true;
+      document.getElementById('success-marker').hidden = false;
+      this.hidden = true;
+    } else {
+      err.textContent = 'Preferences do not match the requested configuration. ' +
+        '(Read each label carefully.)';
+      err.hidden = false;
+    }
+  });
+</script>
+</body>
+</html>

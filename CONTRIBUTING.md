@@ -56,8 +56,16 @@ Task(
     timeout_seconds=120,
     difficulty="easy" | "medium" | "hard",
     tags=["..."],
+    expected_failure_modes=[FailureTag.LOOPING],  # ОБЯЗАТЕЛЬНО, см. ниже
 )  # Reveals: одно предложение о том, что задача выявляет.
 ```
+
+Поле `expected_failure_modes: list[FailureTag]` — структурированный аналог
+комментария «Reveals: …» (значения — из enum `FailureTag` в
+[`src/agentalyze/analysis/failure_taxonomy.py`](src/agentalyze/analysis/failure_taxonomy.py)).
+Оно питает индекс `agentalyze tasks --tag <FailureTag>`; **обязательное** для
+новых задач с тех пор, как индекс по тегам появился — PR без него не проходит
+проверку `tests/tasks/test_cli_tag_filter.py::test_every_registered_task_declares_failure_modes`.
 
 После записи в реестр задача автоматически доступна всем командам CLI
 (`run`, `compare`, `tasks`) — отдельной регистрации нигде больше не нужно.
@@ -84,7 +92,7 @@ pytest -m browser   # если меняли фикстуры/верификат�
 
 - [ ] Все быстрые тесты зелёные, ruff и mypy strict чистые.
 - [ ] Обновите счётчик задач в бейдже README, если он изменился
-      (`18 tasks · N categories · N verifiers`).
+      (`30 tasks · N categories · N verifiers`).
 
 ## Другие виды вклада
 

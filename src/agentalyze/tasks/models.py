@@ -20,9 +20,15 @@ paths and form submissions.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+if TYPE_CHECKING:
+    # Imported lazily at runtime (see the model_rebuild note in
+    # analysis/failure_taxonomy.py): a module-level import here would create
+    # an import cycle tasks.models -> analysis -> runner.trace -> tasks.models.
+    from agentalyze.analysis.failure_taxonomy import FailureTag
 
 
 class TaskCategory(str, Enum):
@@ -81,6 +87,11 @@ class Task(BaseModel):
     )
     difficulty: Literal["easy", "medium", "hard"]
     tags: list[str] = Field(default_factory=list)
+    #: Failure modes (FailureTag values) this task is EXPECTED to expose when an
+    #: agent fails at it — the structured counterpart of the registry's free-form
+    #: "Reveals: …" comment. Optional for backward compatibility with tasks added
+    #: before the field existed; new tasks MUST fill it (see CONTRIBUTING.md).
+    expected_failure_modes: list[FailureTag] = Field(default_factory=list)
 
     @field_validator("id")
     @classmethod

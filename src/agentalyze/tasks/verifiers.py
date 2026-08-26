@@ -261,6 +261,10 @@ VERIFIERS: dict[str, Verifier] = {
     "verify-extract-date": AnswerDateVerifier(expected=date(2027, 3, 14)),
     # extraction/table_count_03: delivered orders with total > 100 (answer: 3)
     "verify-extract-delivered-count": AnswerNumberVerifier(expected=3),
+    # extraction/order_total_04: charged today = $129.99 body + $45.00 one-time warranty
+    "verify-extract-today-total": AnswerNumberVerifier(expected=174.99),
+    # extraction/api_version_05: current stable API version from the release facts list
+    "verify-extract-api-version": AnswerTextVerifier("2.4.1"),
     # error_recovery/dead_end_02: the unobtrusive 'legacy portal' route reaches the goal
     "verify-err-legacy-reached": ElementPresentVerifier(
         "#legacy-goal",
@@ -270,5 +274,10 @@ VERIFIERS: dict[str, Verifier] = {
     "verify-distractor-dashboard": ElementPresentVerifier(
         "#dashboard-real",
         "The genuine dashboard page was reached (not one of the look-alike decoys).",
+    ),
+    # distractor/readmore_context_05: the 'Read more' inside the privacy card is the only real one
+    "verify-distractor-privacy-reached": ElementPresentVerifier(
+        '#privacy-details[data-reached="true"]',
+        "The genuine privacy policy update page was reached.",
     ),
 }

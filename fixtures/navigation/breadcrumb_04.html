@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!-- nav-breadcrumb-04: the agent is deep inside a docs section and must use the
+     breadcrumb trail (structural navigation) to reach the 'Guides' hub. The sidebar
+     offers many plausible-looking links, but only the breadcrumb leads to the hub.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Acme Docs</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+.breadcrumbs a{color:#06c;margin-right:.4rem}
+aside{float:right;width:16rem;border:1px solid #ddd;padding:1rem}
+section.hub{display:none;border-top:2px solid #333;padding-top:1rem}</style>
+</head>
+<body>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <a href="#" data-crumb="home">Home</a> /
+  <a href="#" data-crumb="guides">Guides</a> /
+  <span>Deploying to staging</span>
+</nav>
+
+<aside>
+  <h3>In this section</h3>
+  <ul>
+    <li><a href="#" data-decoy="deploy-guide">Deployment guide</a></li>
+    <li><a href="#" data-decoy="staging-env">Staging environments</a></li>
+    <li><a href="#" data-decoy="rollback">Rollbacks</a></li>
+    <li><a href="#" data-decoy="ci-setup">CI setup</a></li>
+  </ul>
+</aside>
+
+<h1>Deploying to staging</h1>
+<p>This page explains how to deploy a preview build to the staging cluster.</p>
+
+<section class="hub" id="guides-hub">
+  <h2>Guides</h2>
+  <p id="success-marker">Welcome to the Guides hub — all Acme deployment guides live here.</p>
+</section>
+
+<script>
+  document.querySelectorAll('a[data-crumb]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (link.dataset.crumb === 'guides') {
+        document.getElementById('guides-hub').style.display = 'block';
+      }
+    });
+  });
+  // Every sidebar link is a dead end by design: it only flashes the same page.
+  document.querySelectorAll('a[data-decoy]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      var note = document.createElement('p');
+      note.textContent = '(This article is not the Guides hub.)';
+      document.querySelector('h1').after(note);
+    });
+  });
+</script>
+</body>
+</html>

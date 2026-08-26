@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- form-fill-repeater-04: expense lines do not exist in the DOM until the agent
+     clicks 'Add expense line'; the agent must re-observe after each DOM mutation.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Expense Report</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+.expense-row{margin:.5rem 0}
+.expense-row input{margin-right:.5rem}</style>
+</head>
+<body>
+<h1>Monthly Expense Report</h1>
+
+<div id="expense-lines"></div>
+<button id="add-line">Add expense line</button>
+
+<form id="expense-form">
+  <button id="submit-expenses" type="submit">Submit report</button>
+</form>
+<p id="form-error" style="color:#b00" hidden></p>
+<div id="success-marker" hidden>
+  Expense report submitted: 2 line(s) accepted.
+</div>
+
+<script>
+  var lineCount = 0;
+  document.getElementById('add-line').addEventListener('click', function () {
+    var row = document.createElement('div');
+    row.className = 'expense-row';
+    row.setAttribute('data-line-index', String(lineCount));
+    var desc = document.createElement('input');
+    desc.placeholder = 'Description';
+    desc.className = 'line-desc';
+    var amount = document.createElement('input');
+    amount.placeholder = 'Amount (e.g. 25.50)';
+    amount.className = 'line-amount';
+    row.appendChild(desc); row.appendChild(amount);
+    document.getElementById('expense-lines').appendChild(row);
+    lineCount++;
+  });
+
+  document.getElementById('expense-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('form-error');
+    var rows = document.querySelectorAll('#expense-lines .expense-row');
+    var filled = 0;
+    rows.forEach(function (row) {
+      var d = row.querySelector('.line-desc').value.trim();
+      var a = row.querySelector('.line-amount').value.trim();
+      if (d && a && !isNaN(parseFloat(a))) filled++;
+    });
+    if (filled < 2) {
+      err.textContent = 'At least two complete expense lines are required.';
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

@@ -366,3 +366,14 @@ def classify_failure(
     return [tag for tag in FailureTag if tag in tags]
 
 
+# The ``Task.expected_failure_modes`` field (tasks/models.py) is typed with this
+# enum via a forward reference, because a module-level import would close an
+# import cycle (tasks.models -> analysis -> runner.trace -> tasks.models). Now
+# that FailureTag fully exists, rebuild the model so the forward reference
+# resolves — after this line every Task construction validates the field as
+# list[FailureTag] regardless of which module was imported first.
+from agentalyze.tasks.models import Task as _TaskWithFailureModes
+
+_TaskWithFailureModes.model_rebuild()
+
+

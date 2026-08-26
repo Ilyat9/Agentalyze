@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- multi-search-filter-05: typing in the search box filters product cards live;
+     the agent must re-observe after typing to find the matching card's detail button.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Hardware Catalog</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+.card{border:1px solid #ddd;padding:.8rem;margin:.5rem 0;max-width:26rem}
+.no-results{font-style:italic}</style>
+</head>
+<body>
+<h1>Hardware Catalog</h1>
+
+<label>Search: <input id="catalog-search" type="search" placeholder="Type a product name…"></label>
+
+<div id="catalog">
+  <div class="card" data-product="steel hammer">
+    <h3>Steel Hammer Pro</h3><p>Forged head, hickory handle.</p>
+    <button data-details="steel-hammer-pro">View details</button>
+  </div>
+  <div class="card" data-product="copper kettle">
+    <h3>Copper Kettle Classic</h3><p>1.8 L, hand-hammered copper.</p>
+    <button data-details="copper-kettle-classic">View details</button>
+  </div>
+  <div class="card" data-product="brass lamp">
+    <h3>Brass Desk Lamp</h3><p>Warm light, E14 socket.</p>
+    <button data-details="brass-desk-lamp">View details</button>
+  </div>
+  <div class="card" data-product="iron shelf">
+    <h3>Iron Shelf 120</h3><p>Five levels, powder coated.</p>
+    <button data-details="iron-shelf-120">View details</button>
+  </div>
+</div>
+<p class="no-results" id="no-results" hidden>No products match your search.</p>
+
+<div id="success-marker" hidden>
+  Product details opened: Copper Kettle Classic (1.8 L, hand-hammered copper).
+</div>
+
+<script>
+  var search = document.getElementById('catalog-search');
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    var visible = 0;
+    document.querySelectorAll('#catalog .card').forEach(function (card) {
+      var hit = card.dataset.product.indexOf(q) !== -1;
+      card.style.display = hit ? '' : 'none';
+      if (hit) visible++;
+    });
+    document.getElementById('no-results').hidden = visible > 0 || q === '';
+  });
+
+  document.querySelector('[data-details="copper-kettle-classic"]')
+    .addEventListener('click', function () {
+      document.getElementById('catalog').style.display = 'none';
+      document.getElementById('success-marker').hidden = false;
+    });
+  // Decoy detail buttons lead to an empty details stub instead.
+  document.querySelectorAll('.card:not([data-product="copper kettle"]) [data-details]')
+    .forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btn.textContent = 'Details unavailable';
+        btn.disabled = true;
+      });
+    });
+</script>
+</body>
+</html>

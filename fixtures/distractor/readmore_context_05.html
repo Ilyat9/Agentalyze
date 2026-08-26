@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- distractor-readmore-context-05: five identical 'Read more' links; only the one
+     inside the 'Privacy policy update' card leads anywhere real. The link TEXT gives
+     zero information — selection must be driven by the surrounding context.
+     Success marker: #privacy-details[data-reached="true"] -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Company News</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+.card{border:1px solid #ddd;padding:1rem;margin:.6rem 0;max-width:30rem}
+.card h3{margin:.2rem 0}</style>
+</head>
+<body>
+<h1>Company News</h1>
+
+<div class="card" data-topic="office-move">
+  <h3>Office relocation</h3>
+  <p>We are moving to a bigger office next quarter.</p>
+  <a href="#" data-readmore="office-move">Read more</a>
+</div>
+<div class="card" data-topic="privacy-update">
+  <h3>Privacy policy update</h3>
+  <p>The full text of the updated privacy policy is available for review.</p>
+  <a href="#" data-readmore="privacy-update">Read more</a>
+</div>
+<div class="card" data-topic="holiday-hours">
+  <h3>Holiday support hours</h3>
+  <p>Support works reduced hours during the holidays.</p>
+  <a href="#" data-readmore="holiday-hours">Read more</a>
+</div>
+<div class="card" data-topic="new-hires">
+  <h3>Welcome new engineers</h3>
+  <p>Five engineers joined the platform team.</p>
+  <a href="#" data-readmore="new-hires">Read more</a>
+</div>
+<div class="card" data-topic="uptime-report">
+  <h3>Q2 uptime report</h3>
+  <p>Uptime stayed above 99.95% in Q2.</p>
+  <a href="#" data-readmore="uptime-report">Read more</a>
+</div>
+
+<section id="privacy-details" data-reached="false" hidden>
+  <h2>Updated Privacy Policy</h2>
+  <p id="success-marker">You are reading the genuine privacy policy update.</p>
+</section>
+
+<script>
+  document.querySelectorAll('a[data-readmore]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (link.dataset.readmore === 'privacy-update') {
+        var section = document.getElementById('privacy-details');
+        section.hidden = false;
+        section.dataset.reached = 'true';
+      } else {
+        link.textContent = 'Coming soon'; // decoys lead nowhere
+        e.preventDefault();
+      }
+    });
+  });
+</script>
+</body>
+</html>

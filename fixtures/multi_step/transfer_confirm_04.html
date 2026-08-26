@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!-- multi-transfer-confirm-04: step 2 requires a confirmation code that is only
+     displayed on the step-1 review screen — information must be carried across views.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Secure Transfer</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+.screen{display:none}.screen.active{display:block}
+#confirm-code-display{font-family:monospace;font-size:1.3rem;background:#f4f4f4;padding:.2rem .6rem}
+#form-error{color:#b00}</style>
+</head>
+<body>
+<h1>Transfer Money</h1>
+
+<div class="screen active" id="screen-form">
+  <h2>Step 1 — Recipient and amount</h2>
+  <form id="transfer-form">
+    <label>Recipient account: <input id="recipient" placeholder="e.g. ACC-778812"></label><br>
+    <label>Amount (USD): <input id="amount" placeholder="e.g. 250"></label><br>
+    <button id="review-btn" type="submit">Review transfer</button>
+  </form>
+</div>
+
+<div class="screen" id="screen-review">
+  <h2>Step 2 — Confirm with your one-time code</h2>
+  <p>Transfer of <span id="review-summary"></span> is pending.</p>
+  <p>Your confirmation code: <span id="confirm-code-display">4827</span></p>
+  <form id="confirm-form">
+    <label>Enter the code: <input id="confirm-code" inputmode="numeric"></label>
+    <button id="confirm-btn" type="submit">Confirm transfer</button>
+  </form>
+  <button id="back-btn" type="button">Back</button>
+</div>
+
+<p id="form-error" hidden></p>
+<div id="success-marker" hidden>Transfer complete.</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+  var err = document.getElementById('form-error');
+  function fail(msg) { err.textContent = msg; err.hidden = false; }
+
+  document.getElementById('transfer-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var who = document.getElementById('recipient').value.trim();
+    var amt = document.getElementById('amount').value.trim();
+    if (!who || !amt || isNaN(parseFloat(amt))) { fail('Enter a recipient and a numeric amount.'); return; }
+    document.getElementById('review-summary').textContent = '$' + amt + ' to ' + who;
+    err.hidden = true;
+    show('screen-review');
+  });
+  document.getElementById('back-btn').addEventListener('click', function () {
+    show('screen-form');
+  });
+  document.getElementById('confirm-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (document.getElementById('confirm-code').value.trim() ===
+        document.getElementById('confirm-code-display').textContent.trim()) {
+      err.hidden = true;
+      document.getElementById('success-marker').hidden = false;
+      show('screen-form');
+      this.hidden = true;
+    } else {
+      fail('Wrong confirmation code — check the code shown above.');
+    }
+  });
+</script>
+</body>
+</html>

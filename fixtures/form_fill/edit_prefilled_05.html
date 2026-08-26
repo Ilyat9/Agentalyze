@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- form-edit-prefilled-05: the form arrives pre-filled; the agent must change ONLY
+     the email and the plan and leave the name exactly as-is (selective editing).
+     Success marker: #success-marker (only shown when the submitted state is exact). -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Edit Profile</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+label{display:block;margin:.6rem 0}#form-error{color:#b00}</style>
+</head>
+<body>
+<h1>Edit Profile</h1>
+
+<form id="profile-form">
+  <label>Name: <input id="name" value="Maria Ivanova"></label>
+  <label>Email: <input id="email" value="maria@old.example.com"></label>
+  <label>Plan:
+    <select id="plan">
+      <option value="basic" selected>Basic</option>
+      <option value="pro">Pro</option>
+      <option value="enterprise">Enterprise</option>
+    </select>
+  </label>
+  <button id="save-profile" type="submit">Save profile</button>
+</form>
+<p id="form-error" hidden></p>
+<div id="success-marker" hidden>Profile saved.</div>
+
+<script>
+  // The name is immutable business data: any modification must block the save.
+  var ORIGINAL_NAME = 'Maria Ivanova';
+  document.getElementById('profile-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('form-error');
+    var name = document.getElementById('name').value;
+    var email = document.getElementById('email').value.trim();
+    var plan = document.getElementById('plan').value;
+    if (name !== ORIGINAL_NAME) {
+      err.textContent = 'Save rejected: the account name must remain “' +
+        ORIGINAL_NAME + '”. Only the email and the plan may be edited.';
+      err.hidden = false;
+      return;
+    }
+    if (!email.includes('@') || email === 'maria@old.example.com' || plan !== 'pro') {
+      err.textContent = 'Save rejected: the new email must be set and the plan must be Pro.';
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>

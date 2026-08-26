@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- err-slow-export-04: after 'Start export' the page stalls on a progress note for
+     ~2.5 seconds (network-like hang) before the result appears by itself; the agent
+     must wait patiently instead of re-clicking or declaring failure.
+     Success marker: #export-done[data-done="true"] -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Data Export</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+#progress-note{font-style:italic}</style>
+</head>
+<body>
+<h1>Account Data Export</h1>
+
+<button id="start-export">Start export</button>
+<p id="progress-note" hidden>
+  Export in progress — this usually takes a few seconds. Please wait, do not close the page.
+</p>
+
+<div id="export-done" data-done="false" hidden>
+  <p id="success-marker">Export finished: your archive is ready (archive-2026-08-26.zip).</p>
+</div>
+
+<script>
+  var clicks = 0;
+  document.getElementById('start-export').addEventListener('click', function () {
+    clicks++;
+    if (clicks > 1) return; // repeated clicking changes nothing; patience does
+    document.getElementById('progress-note').hidden = false;
+    this.disabled = true;
+    // Simulated network-like stall: nothing happens for 2.5s, then the
+    // server-side export "completes" and the DOM updates by itself.
+    setTimeout(function () {
+      var done = document.getElementById('export-done');
+      done.hidden = false;
+      done.dataset.done = 'true';
+    }, 2500);
+  });
+</script>
+</body>
+</html>

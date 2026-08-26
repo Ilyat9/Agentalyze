@@ -62,6 +62,16 @@ REFERENCE: dict[str, TaskReference] = {
         '#panel-secret[data-opened="true"]',
         ("click", 'button[data-tab-id="tab-archive"]', None),
     ),
+    "nav-breadcrumb-04": _ref(
+        "#success-marker",
+        ("click", 'a[data-crumb="guides"]', None),
+    ),
+    "nav-pagination-05": _ref(
+        "#success-marker",
+        ("click", "#next-page", None),
+        ("click", "#next-page", None),  # ticket #4821 lives on page 3
+        ("click", 'button[data-view-ticket="4821"]', None),
+    ),
     # --- FORM_FILL ------------------------------------------------------------
     "form-fill-basic-01": _ref(
         "#success-marker",
@@ -87,6 +97,24 @@ REFERENCE: dict[str, TaskReference] = {
         ("check", "#terms", None),
         ("click", "#order-btn", None),
     ),
+    "form-fill-repeater-04": _ref(
+        "#success-marker",
+        # Rows exist in the DOM only after each 'Add expense line' click.
+        ("click", "#add-line", None),
+        ("fill", '.expense-row[data-line-index="0"] .line-desc', "Taxi"),
+        ("fill", '.expense-row[data-line-index="0"] .line-amount', "25.50"),
+        ("click", "#add-line", None),
+        ("fill", '.expense-row[data-line-index="1"] .line-desc', "Hotel"),
+        ("fill", '.expense-row[data-line-index="1"] .line-amount', "180.00"),
+        ("click", "#submit-expenses", None),
+    ),
+    "form-edit-prefilled-05": _ref(
+        "#success-marker",
+        # Name arrives pre-filled and must stay untouched; only email + plan change.
+        ("fill", "#email", "maria@new.example.com"),
+        ("select", "#plan", "pro"),
+        ("click", "#save-profile", None),
+    ),
 }
 
 # --- EXTRACTION -------------------------------------------------------------
@@ -109,6 +137,22 @@ REFERENCE["extract-table-count-03"] = _ref(
     "#answer-recorded",
     ("fill", "#answer-value", "3"),
     ("fill", "#answer-confidence", "0.8"),
+    ("click", "#submit-answer", None),
+)
+
+# 129.99 (camera body) + 45.00 (one-time warranty) = 174.99 charged today;
+# the monthly subscription is explicitly NOT charged today.
+REFERENCE["extract-order-total-04"] = _ref(
+    "#answer-recorded",
+    ("fill", "#answer-value", "174.99"),
+    ("fill", "#answer-confidence", "0.9"),
+    ("click", "#submit-answer", None),
+)
+
+REFERENCE["extract-api-version-05"] = _ref(
+    "#answer-recorded",
+    ("fill", "#answer-value", "2.4.1"),
+    ("fill", "#answer-confidence", "0.95"),
     ("click", "#submit-answer", None),
 )
 
@@ -138,6 +182,22 @@ REFERENCE["multi-settings-toggles-03"] = _ref(
     ("click", "#save-settings", None),
 )
 
+REFERENCE["multi-transfer-confirm-04"] = _ref(
+    "#success-marker",
+    ("fill", "#recipient", "ACC-778812"),
+    ("fill", "#amount", "250"),
+    ("click", "#review-btn", None),
+    # The code (4827) is only displayed on the review screen reached above.
+    ("fill", "#confirm-code", "4827"),
+    ("click", "#confirm-btn", None),
+)
+
+REFERENCE["multi-search-filter-05"] = _ref(
+    "#success-marker",
+    ("fill", "#catalog-search", "copper kettle"),
+    ("click", 'button[data-details="copper-kettle-classic"]', None),
+)
+
 # --- ERROR_RECOVERY -----------------------------------------------------------
 REFERENCE["err-retry-submit-01"] = _ref(
     "#success-marker",
@@ -160,6 +220,21 @@ REFERENCE["err-flaky-widget-03"] = _ref(
     ("click", "#generate-report", None),  # ...third click works
 )
 
+# One click, then patience: the export "hangs" for 2.5s and completes by itself.
+REFERENCE["err-slow-export-04"] = _ref(
+    '#export-done[data-done="true"]',
+    ("click", "#start-export", None),
+)
+
+# First submit fails with a banner that wrongly blames the email field;
+# the real fix is completing the phone number.
+REFERENCE["err-misleading-error-05"] = _ref(
+    "#success-marker",
+    ("click", "#save-contact", None),  # rejected by design (misleading banner)
+    ("fill", "#phone", "+1 555 010 20 30"),
+    ("click", "#save-contact", None),
+)
+
 # --- DISTRACTOR -----------------------------------------------------------------
 REFERENCE["distractor-buttons-01"] = _ref(
     "#success-marker",
@@ -177,4 +252,18 @@ REFERENCE["distractor-forms-03"] = _ref(
     ("fill", "#real-name", "Test User"),
     ("fill", "#real-email", "user@example.com"),
     ("click", "#real-submit", None),
+)
+
+# Required end state: digest ON, security ON, promo OFF. Labels are negated,
+# so the only checkbox that must be TOGGLED is "Do NOT send me promotional offers";
+# the destructive-looking unsubscribe-all box must stay untouched.
+REFERENCE["distractor-checkbox-negation-04"] = _ref(
+    "#success-marker",
+    ("check", "#opt-promo", None),
+    ("click", "#save-prefs", None),
+)
+
+REFERENCE["distractor-readmore-context-05"] = _ref(
+    '#privacy-details[data-reached="true"]',
+    ("click", 'a[data-readmore="privacy-update"]', None),
 )

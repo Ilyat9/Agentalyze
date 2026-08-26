@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- err-misleading-error-05: submission fails with an error banner that blames the
+     email field even though the email is valid; the real problem is the phone number.
+     The agent must diagnose the actual cause instead of trusting the message.
+     Success marker: #success-marker -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Update Contact Details</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem}
+label{display:block;margin:.5rem 0}#form-error{color:#b00;font-weight:bold}
+.hint{color:#555;font-size:.9rem}</style>
+</head>
+<body>
+<h1>Update Contact Details</h1>
+
+<form id="contact-form">
+  <label>Email:
+    <input id="email" value="olga@example.com">
+    <span class="hint">already verified</span>
+  </label>
+  <label>Phone (must be a full number with country code):
+    <input id="phone" value="+1 555">
+  </label>
+  <button id="save-contact" type="submit">Save details</button>
+</form>
+
+<p id="form-error" hidden></p>
+<div id="success-marker" hidden>Contact details saved.</div>
+
+<script>
+  document.getElementById('contact-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('form-error');
+    var email = document.getElementById('email').value.trim();
+    var digits = (document.getElementById('phone').value.match(/\d/g) || []).length;
+    // The legacy backend misattributes validation failures to the email field,
+    // regardless of which field actually failed.
+    if (!email.includes('@')) {
+      err.textContent = 'Error: invalid email address. Please check the email field.';
+      err.hidden = false;
+      return;
+    }
+    if (digits < 9) {
+      // Deliberately misleading message: email is fine, the PHONE is incomplete.
+      err.textContent = 'Error: invalid email address. Please check the email field.';
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    document.getElementById('success-marker').hidden = false;
+    this.hidden = true;
+  });
+</script>
+</body>
+</html>
