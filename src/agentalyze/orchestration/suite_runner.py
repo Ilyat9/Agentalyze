@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -42,6 +43,23 @@ from agentalyze.tasks.models import Task, TaskCategory
 from agentalyze.tasks.registry import TASKS, TASKS_BY_ID
 
 logger = logging.getLogger(__name__)
+
+
+def _format_eta(seconds: float) -> str:
+    """Human-readable remaining-time estimate ('42s', '3m 05s', '1h 02m').
+
+    Deliberately coarse (no seconds shown above a minute): the estimate is a
+    linear extrapolation from already-finished combinations, so displaying
+    fake precision would be dishonest.
+    """
+    total_seconds = max(0, round(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
 
 
 class SuiteRunConfig(BaseModel):
@@ -155,8 +173,10 @@ async def run_suite(
 ) -> SuiteRunResult:
     """Run every selected task with every selected provider, sequentially.
 
-    Progress is printed to stdout as ``[i/N] task=... provider=... -> outcome``;
-    after EVERY completed combination the current :class:`SuiteRunResult`
+    Progress is printed to stdout as ``[i/N] task=... provider=... -> outcome``.
+    From the second combination on, the progress prefix carries an ETA — a
+    simple linear extrapolation ``avg(finished combinations) * remaining``.
+    After EVERY completed combination the current :class:`SuiteRunResult`
     snapshot (all traces so far + recomputed per-provider metrics) is
     persisted, so an interrupted run keeps everything finished up to that
     point.
@@ -202,9 +222,23 @@ async def run_suite(
         flush=True,
     )
 
+    #: Wall-clock durations of completed combinations, in run order; feeds the
+    #: linear ETA extrapolation below (simple average, no smoothing needed).
+    completed_durations: list[float] = []
+
     for index, (task, provider) in enumerate(combinations, start=1):
-        print(f"[{index}/{total}] task={task.id} provider={provider.name} ... ",
-              end="", flush=True)
+        eta_prefix = ""
+        if completed_durations:
+            avg_seconds = sum(completed_durations) / len(completed_durations)
+            eta_seconds = avg_seconds * (total - index + 1)
+            eta_prefix = f" (eta ~{_format_eta(eta_seconds)} left)"
+        print(
+            f"[{index}/{total}]{eta_prefix} task={task.id} "
+            f"provider={provider.name} ... ",
+            end="",
+            flush=True,
+        )
+        combo_started = time.monotonic()
         try:
             trace = await run_task(task, provider, settings)
         except asyncio.CancelledError:
@@ -217,6 +251,10 @@ async def run_suite(
                              provider.name)
             print(f"CRASHED: {exc}", flush=True)
             continue
+        finally:
+            # Crashed combinations still consumed wall-clock time; counting
+            # them keeps the ETA honest for suites where several combos fail.
+            completed_durations.append(time.monotonic() - combo_started)
 
         result.traces.append(trace)
         # finished_at tracks "as of this snapshot" on every intermediate save.

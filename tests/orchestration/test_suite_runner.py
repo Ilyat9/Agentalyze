@@ -15,6 +15,7 @@ import agentalyze.orchestration.suite_runner as suite_runner_module
 from agentalyze.config import Settings
 from agentalyze.orchestration.suite_runner import (
     SuiteRunConfig,
+    _format_eta,
     load_suite_run,
     run_suite,
     select_tasks,
@@ -344,4 +345,31 @@ class TestRealBrowserSuiteRun:
         metrics = result.metrics_by_provider["scripted-browser"]
         assert metrics.total_tasks == 2
         assert metrics.success_rate == pytest.approx(1.0)
+
+
+class TestEtaExtrapolation:
+    def test_format_eta_units(self) -> None:
+        assert _format_eta(0) == "0s"
+        assert _format_eta(42) == "42s"
+        assert _format_eta(185) == "3m 05s"
+        assert _format_eta(3600) == "1h 00m"
+        assert _format_eta(3725) == "1h 02m"
+
+    async def test_progress_lines_carry_eta_from_second_combination_on(
+        self, suite_settings: Settings, monkeypatch: pytest.MonkeyPatch, capsys
+    ) -> None:
+        """The linear extrapolation kicks in once one combination is done."""
+        monkeypatch.setattr(suite_runner_module, "run_task", _fake_run_task())
+
+        result = await run_suite(_subset_config(), _two_providers(), suite_settings)
+        assert len(result.traces) == 4
+
+        out = capsys.readouterr().out
+        assert "[1/4] task=" in out  # nothing finished yet -> no ETA on line 1
+        eta_lines = [line for line in out.splitlines() if "(eta ~" in line]
+        # Lines 2..4 each carry an estimate; the last one covers exactly one
+        # remaining combination (~instant fake tasks -> '~0s').
+        assert len(eta_lines) == 3
+        assert "[4/4]" in eta_lines[-1]
+        assert "~0s" in eta_lines[-1]
 
