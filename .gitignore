@@ -19,6 +19,10 @@ dist/
 .env
 .env.*
 
+# Local provider config (user-specific; secrets-free but machine-local,
+# see providers.example.yaml for the committed template)
+providers.yaml
+
 # Run artifacts (never commit run results or generated fixtures)
 /results/
 /fixtures/generated/
