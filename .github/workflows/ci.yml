@@ -53,7 +53,7 @@ jobs:
       - name: Install package with dev + browser extras
         # [browser] нужен здесь не для запуска браузера, а чтобы mypy видел
         # типы playwright (модули runner/verifiers импортируют его напрямую).
-        run: pip install -e ".[dev,browser]" types-PyYAML
+        run: pip install -e ".[dev,browser,api]" types-PyYAML
 
       - name: Ruff
         run: ruff check .
@@ -75,7 +75,7 @@ jobs:
       - name: Install package with dev + browser extras
         # Без [browser] сборка тестов падает: даже небраузерные тесты
         # импортируют agentalyze.runner, а тот на уровне модуля тянет playwright.
-        run: pip install -e ".[dev,browser]"
+        run: pip install -e ".[dev,browser,api]"
 
       - name: Run fast tests (no browser, no external services)
         run: pytest -m "not browser and not requires_ollama and not e2e_live"
@@ -92,7 +92,7 @@ jobs:
           cache: pip
 
       - name: Install package with browser extra
-        run: pip install -e ".[dev,browser]"
+        run: pip install -e ".[dev,browser,api]"
 
       - name: Resolve Playwright version (cache key component)
         id: pw-version
@@ -135,10 +135,22 @@ jobs:
         run: |
           OUTPUT="$(docker run --rm agentalyze:ci tasks)"
           echo "$OUTPUT"
-          echo "$OUTPUT" | grep -q "registered tasks"
+          # CLI печатает "N registered task(s)" — паттерн без финальной 's'.
+          echo "$OUTPUT" | grep -q "registered task"
+
+      - name: Smoke test — service mode boots and answers probes
+        run: |
+          # SQLite в /tmp: /app недоступна на запись под pwuser.
+          docker run -d --name agt-smoke \
+            -e AGENTALYZE_DATABASE_URL=sqlite+aiosqlite:////tmp/svc.db \
+            agentalyze:ci serve --host 0.0.0.0 --port 8000
+          sleep 8
+          docker exec agt-smoke python -c "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/livez', timeout=5); assert r.status==200; r2=urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=5); assert r2.status==200; print('service smoke OK')"
+          docker rm -f agt-smoke
 
   # ---------------------------------------------------------------------------
   # РУЧНОЙ честный end-to-end прогон с настоящим платным провайдером.
+
   # Никогда не выполняется на push/pull_request — только по запросу
   # (Actions -> CI -> Run workflow). Требует секрет OPENROUTER_API_KEY.
   # ---------------------------------------------------------------------------

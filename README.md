@@ -44,10 +44,11 @@ Eval harness for LLM agents working with tools and a real browser. Вместо
 6. [Running evaluations](#running-evaluations)
 7. [Regression checks / CI integration](#regression-checks--ci-integration)
 8. [Docker](#docker)
-9. [Development](#development)
-10. [Design decisions](#design-decisions)
-11. [Roadmap / Status](#roadmap--status)
-12. [Лицензия](#лицензия)
+9. [HTTP API / сервисный режим](#http-api--сервисный-режим)
+10. [Development](#development)
+11. [Design decisions](#design-decisions)
+12. [Roadmap / Status](#roadmap--status)
+13. [Лицензия](#лицензия)
 
 ## Быстрый старт
 
@@ -448,6 +449,38 @@ docker compose run --rm agentalyze compare \
 контейнеризированному. Готовый скрипт всего сценария «облако vs локальная
 модель», включая regression-check на двух прогонах:
 [`examples/compare_local_vs_cloud.sh`](examples/compare_local_vs_cloud.sh).
+
+## HTTP API / сервисный режим
+
+Помимо CLI, Agentalyze поднимается как HTTP-сервис для нескольких
+одновременных клиентов: `POST /runs` (фоновый запуск suite-прогона),
+`GET /runs/{id}` (статус), `GET /runs/{id}/report` (Markdown/HTML),
+`POST /regression-check`, глубокий `GET /health` и Prometheus `/metrics`.
+API — тонкий слой поверх тех же функций, что использует CLI: бизнес-логика
+одна, оба режима продолжают работать.
+
+```bash
+pip install -e ".[api]"                       # сервисные зависимости (опциональны)
+agentalyze create-api-key --name my-client    # ключ показывается один раз
+agentalyze serve --host 0.0.0.0 --port 8000
+
+curl -X POST http://localhost:8000/runs \
+     -H "Authorization: Bearer agt-..." \
+     -H "Content-Type: application/json" \
+     -d '{"provider_names": ["gpt-4o-mini-via-openrouter"],
+          "task_ids": ["nav-simple-link-01"]}'
+```
+
+Метаданные прогонов живут в БД (SQLite по умолчанию, PostgreSQL для
+конкурентной записи; alembic-миграции накатываются при старте), ключи API
+хранятся хэшированными (scrypt), rate-limit на запуски — slowapi,
+структурные JSON-логи — structlog. Опционально секреты берутся из Vault
+(дефолт — переменные окружения, как раньше). Полный продакшн-гид:
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); модель угроз и известные риски:
+[`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md).
+
+Локальный сервисный стенд с PostgreSQL: `docker compose -f
+docker-compose.service.yml up -d --build`. Kubernetes-манифесты: `deploy/k8s/`.
 
 ## Development
 
