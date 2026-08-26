@@ -189,6 +189,8 @@ async def run_suite(
     config: SuiteRunConfig,
     providers: dict[str, Provider],
     settings: Settings,
+    *,
+    suite_run_id: str | None = None,
 ) -> SuiteRunResult:
     """Run every selected task with every selected provider.
 
@@ -221,7 +223,7 @@ async def run_suite(
     combinations = [(task, provider) for task in tasks for provider in selected_providers]
 
     result = SuiteRunResult(
-        suite_run_id=str(uuid.uuid4()),
+        suite_run_id=suite_run_id or str(uuid.uuid4()),
         started_at=datetime.now(UTC),
         finished_at=datetime.now(UTC),
         config=config,

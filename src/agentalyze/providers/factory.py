@@ -7,9 +7,8 @@ live in it — only the name of the environment variable holding the API key
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +18,10 @@ from agentalyze.providers.ollama import DEFAULT_BASE_URL as OLLAMA_DEFAULT_BASE_
 from agentalyze.providers.ollama import OllamaProvider
 from agentalyze.providers.openai_compatible import OpenAICompatibleProvider
 from agentalyze.providers.retry import RetryingProvider, RetryPolicy
+
+if TYPE_CHECKING:
+    from agentalyze.config import Settings
+
 
 
 class RetryConfig(BaseModel):
@@ -88,7 +91,10 @@ def _read_config(config_path: Path) -> list[ProviderConfigEntry]:
     return entries
 
 
-def _resolve_api_key(entry: ProviderConfigEntry, config_path: Path) -> str:
+def _resolve_api_key(
+    entry: ProviderConfigEntry, config_path: Path,
+    settings: Settings | None = None,
+) -> str:
     if entry.kind == "ollama":
         # Local servers don't check keys; only read one when explicitly given.
         if entry.api_key_env_var is None:
@@ -103,15 +109,30 @@ def _resolve_api_key(entry: ProviderConfigEntry, config_path: Path) -> str:
             raise ProviderConfigError(msg)
         env_var = entry.api_key_env_var
 
-    value = os.environ.get(env_var)
+    # Vault-then-env resolution (env-only when no Vault is configured — the
+    # historical behavior). A hard Vault error surfaces as a config error.
+    from agentalyze.config import Settings as _Settings
+    from agentalyze.secrets import SecretResolutionError, resolve_secret
+
+    value: str | None = None
+    try:
+        value = resolve_secret(env_var, settings or _Settings())
+    except SecretResolutionError as exc:
+        raise ProviderConfigError(
+            f"Provider '{entry.name}': cannot resolve secret '{env_var}': {exc}"
+        ) from exc
     if not value:
         msg = f"Provider '{entry.name}' requires environment variable '{env_var}', which is not set"
         raise ProviderConfigError(msg)
     return value
 
 
-def _build_inner(entry: ProviderConfigEntry, config_path: Path) -> Provider:
-    api_key = _resolve_api_key(entry, config_path)
+def _build_inner(
+    entry: ProviderConfigEntry, config_path: Path,
+    settings: Settings | None = None,
+) -> Provider:
+    api_key = _resolve_api_key(entry, config_path, settings)
+
     if entry.kind == "ollama":
         return OllamaProvider(
             name=entry.name,
@@ -134,7 +155,9 @@ def _build_inner(entry: ProviderConfigEntry, config_path: Path) -> Provider:
     )
 
 
-def load_providers(config_path: Path) -> dict[str, Provider]:
+def load_providers(
+    config_path: Path, settings: Settings | None = None
+) -> dict[str, Provider]:
     """Load named providers from a YAML config, each wrapped in RetryingProvider.
 
     Returns ``{provider_name: Provider}``. Raises
@@ -143,7 +166,8 @@ def load_providers(config_path: Path) -> dict[str, Provider]:
     """
     providers: dict[str, Provider] = {}
     for entry in _read_config(config_path):
-        inner = _build_inner(entry, config_path)
+        inner = _build_inner(entry, config_path, settings)
+
         policy = RetryPolicy(
             max_attempts=entry.retry.max_attempts,
             initial_wait_seconds=entry.retry.initial_wait_seconds,

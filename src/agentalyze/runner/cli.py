@@ -1,7 +1,7 @@
 """Command-line entry point: ``agentalyze run --task <id> --provider <name>``.
 
 CLI toolkit choice: argparse from the standard library. The project carries
-neither click nor typer as dependencies and this is the only command-line
+neither click nor typer as dependencies, and this is the only command-line
 surface, so adding one just for a couple of flags would be unjustified.
 Output here is a short human-readable summary; the machine-readable artifact
 is the trace JSON on disk.
@@ -60,6 +60,26 @@ def _build_parser() -> argparse.ArgumentParser:
             f"failure tag. Values: {', '.join(tag.value for tag in FailureTag)}."
         ),
     )
+
+    # Service-mode commands (lazy imports keep pure-CLI installs FastAPI-free).
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Run the HTTP API server (service mode; requires pip install -e '.[api]').",
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+
+    key_parser = subparsers.add_parser(
+        "create-api-key",
+        help="Create a hashed Bearer API key for the HTTP API (requires [api]).",
+    )
+    key_parser.add_argument("--name", required=True, help="Human-readable client name.")
+
+    revoke_key_parser = subparsers.add_parser(
+        "revoke-api-key",
+        help="Deactivate an API key by name (requires [api]).",
+    )
+    revoke_key_parser.add_argument("--name", required=True)
 
     # Phase 5: comparison commands live in agentalyze.orchestration.cli but
     # are registered HERE so `agentalyze` stays the single entry point.
@@ -132,6 +152,114 @@ def _print_summary(trace, task_title: str) -> None:  # type: ignore[no-untyped-d
     print("=" * 62)
 
 
+def _cmd_serve(args: argparse.Namespace, settings: Settings) -> int:
+    """`agentalyze serve`: run the HTTP API (requires the [api] extra)."""
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "error: service dependencies are not installed. Run:\n"
+            '  pip install -e ".[api]"',
+            file=sys.stderr,
+        )
+        return 2
+
+    # Imported lazily so a pure-CLI install never pays for FastAPI.
+    from agentalyze.api.app import create_app
+    from agentalyze.api.observability import configure_logging
+
+    configure_logging(settings.log_level, json_format=settings.log_format == "json")
+    uvicorn.run(create_app(settings), host=args.host, port=args.port)
+    return 0
+
+
+def _cmd_create_api_key(args: argparse.Namespace, settings: Settings) -> int:
+    """`agentalyze create-api-key --name <client>`: print a key ONCE, store its hash."""
+    try:
+        from sqlalchemy import select
+
+        from agentalyze.api.auth import generate_api_key, hash_api_key
+        from agentalyze.api.db import (
+            ApiKeyRecord,
+            make_engine,
+            make_session_factory,
+            run_migrations,
+        )
+    except ImportError:
+        print('error: install service dependencies first: pip install -e ".[api]"',
+              file=sys.stderr)
+        return 2
+
+    async def _create() -> str:
+        engine = make_engine(settings.database_url)
+        try:
+            await asyncio.to_thread(run_migrations, settings.database_url)
+            factory = make_session_factory(engine)
+            async with factory() as session:
+                existing = await session.execute(
+                    select(ApiKeyRecord).where(ApiKeyRecord.name == args.name)
+                )
+                if existing.scalar_one_or_none() is not None:
+                    raise SystemExit(
+                        f"error: an API key named {args.name!r} already exists"
+                    )
+                plaintext = generate_api_key()
+                session.add(
+                    ApiKeyRecord(
+                        name=args.name, key_hash=hash_api_key(plaintext), is_active=True
+                    )
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+        return plaintext
+
+    plaintext = asyncio.run(_create())
+    print(f"API key for {args.name!r} (store it NOW — it is never shown again):")
+    print(plaintext)
+    return 0
+
+
+def _cmd_revoke_api_key(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        from sqlalchemy import update
+
+        from agentalyze.api.db import (
+            ApiKeyRecord,
+            make_engine,
+            make_session_factory,
+            run_migrations,
+        )
+    except ImportError:
+        print('error: install service dependencies first: pip install -e ".[api]"',
+              file=sys.stderr)
+        return 2
+
+    async def _revoke() -> int:
+        engine = make_engine(settings.database_url)
+        try:
+            await asyncio.to_thread(run_migrations, settings.database_url)
+            factory = make_session_factory(engine)
+            async with factory() as session:
+                result = await session.execute(
+                    update(ApiKeyRecord)
+                    .where(ApiKeyRecord.name == args.name)
+                    .values(is_active=False)
+                )
+                await session.commit()
+                rowcount: int = result.rowcount  # type: ignore[attr-defined]
+                return rowcount
+        finally:
+            await engine.dispose()
+
+    revoked = asyncio.run(_revoke())
+    if revoked:
+        print(f"Revoked {revoked} API key(s) named {args.name!r}.")
+        return 0
+    print(f"error: no active API key named {args.name!r}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """Console-script entry point; returns the process exit code."""
     args = _build_parser().parse_args(argv)
@@ -142,6 +270,14 @@ def main(argv: list[str] | None = None) -> int:
             FailureTag(args.tag) if args.tag else None,
         )
         return 0
+
+    # Service-mode commands handle their own settings; nothing below applies.
+    if args.command == "serve":
+        return _cmd_serve(args, settings)
+    if args.command == "create-api-key":
+        return _cmd_create_api_key(args, settings)
+    if args.command == "revoke-api-key":
+        return _cmd_revoke_api_key(args, settings)
 
     # Phase 5 commands handle their own provider loading / health checks.
     if args.command == "compare":

@@ -67,6 +67,41 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Service mode (HTTP API). These fields are inert for pure CLI usage ---
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./agentalyze.db",
+        description=(
+            "Async SQLAlchemy URL for service-mode metadata (suite-run registry, "
+            "API keys, baseline pointers). SQLite is the deliberate default for "
+            "single-host/self-hosted deployments; use a postgresql+asyncpg:// URL "
+            "when more than one process writes concurrently."
+        ),
+    )
+    log_format: Literal["console", "json"] = Field(
+        default="console",
+        description=(
+            "Log rendering: 'console' (human-readable, the historical behavior) "
+            "or 'json' (structured one-object-per-line logs for aggregation)."
+        ),
+    )
+    #: Hard cap on suite runs executing at the same time inside ONE server
+    #: process. Each in-flight combination holds a real Chromium instance, so
+    #: this protects memory/CPU budget from monopolization even for
+    #: authenticated clients that pass the request-rate limit.
+    max_active_suite_runs: int = Field(default=2, ge=1)
+    #: Request-rate limit for POST /runs per API key ('N per second/minute'),
+    #: enforced by slowapi. 'none' disables the limit (not recommended).
+    api_runs_rate_limit: str = Field(default="5 per minute")
+    #: When true, POST /runs requires Authorization: Bearer <api key>. Service
+    #: mode defaults it to True; the flag exists so local development can opt out.
+    api_auth_required: bool = Field(default=True)
+    #: Base URL of a HashiCorp Vault instance for secret resolution. Empty means
+    #'env vars only' — the historical behavior and the default.
+    vault_addr: str = Field(default="")
+    vault_token_env_var: str = Field(default="VAULT_TOKEN")
+    vault_kv_mount: str = Field(default="secret")
+
+
     @field_validator("fixtures_dir", "results_dir", mode="after")
     @classmethod
     def _expand_path(cls, value: Path) -> Path:

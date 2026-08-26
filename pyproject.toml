@@ -30,10 +30,32 @@ dev = [
     "mypy>=1.10",
     "respx>=0.21",
     "types-PyYAML",
+    "types-Markdown",
 ]
 browser = [
     "playwright>=1.45",
 ]
+# HTTP service mode (`agentalyze serve`): entirely optional — the pure CLI
+# never needs any of these. Install with `pip install -e ".[api]"`.
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "slowapi>=0.1.10",
+    "structlog>=24",
+    "prometheus-client>=0.20",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+    # PostgreSQL driver for production deployments (SQLite default is for
+    # single-host dev/self-hosted; see docs/DEPLOYMENT.md).
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "markdown>=3.5",
+]
+# Load testing for the API (docs/DEPLOYMENT.md): locust only.
+loadtest = [
+    "locust>=2.20",
+]
+
 
 [project.scripts]
 agentalyze = "agentalyze.runner.cli:main"
