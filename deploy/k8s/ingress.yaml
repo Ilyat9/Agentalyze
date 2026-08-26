@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agentalyze-api
+  namespace: agentalyze
+  annotations:
+    # cert-manager аннотация; уберите при собственном TLS-Secret.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Не позволяем балансировщику держать запросы дольше таймаута прогона.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - agentalyze.example.com
+      secretName: agentalyze-tls
+  rules:
+    - host: agentalyze.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agentalyze-api
+                port:
+                  number: 80

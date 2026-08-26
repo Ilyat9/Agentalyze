@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentalyze-config
+  namespace: agentalyze
+data:
+  # DATABASE_URL собирается в Deployment из секрета (POSTGRES_PASSWORD);
+  # здесь только не-секретные настройки.
+  AGENTALYZE_RESULTS_DIR: /app/results
+  AGENTALYZE_FIXTURES_DIR: /app/fixtures
+  AGENTALYZE_LOG_FORMAT: json
+  AGENTALYZE_LOG_LEVEL: INFO
+  AGENTALYZE_MAX_ACTIVE_SUITE_RUNS: "2"
+  AGENTALYZE_API_RUNS_RATE_LIMIT: "5/minute"
+  AGENTALYZE_API_AUTH_REQUIRED: "true"

@@ -1,0 +1,68 @@
+# =============================================================================
+# Agentalyze — СЕРВИСНЫЙ сценарий (HTTP API + PostgreSQL).
+#
+# Это ОТДЕЛЬНЫЙ compose-файл для режима «несколько клиентов обращаются к API».
+# Привычный локальный CLI-сценарий (docker-compose.yml с Ollama) не тронут —
+# оба режима продолжают работать независимо:
+#
+#   docker compose -f docker-compose.service.yml up -d --build
+#
+# Состав:
+#   postgres      — персистентное метаданные-хранилище сервиса (реестр
+#                   прогонов, хэши API-ключей, baseline-указатель). Полные
+#                   трейсы/скриншоты остаются на диске в томе results_data.
+#   agentalyze-api— HTTP-сервер (`agentalyze serve`); при старте сам
+#                   накатывает alembic-миграции схемы.
+#
+# Первый API-ключ создаётся ОДИН раз вручную:
+#   docker compose -f docker-compose.service.yml run --rm agentalyze-api \
+#       agentalyze create-api-key --name first-client
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentalyze
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentalyze-dev}
+      POSTGRES_DB: agentalyze
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentalyze"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agentalyze-api:
+    build: .
+    image: agentalyze:latest
+    # ENTRYPOINT образа — `agentalyze`; подкоманда serve запускает API.
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AGENTALYZE_DATABASE_URL: postgresql+asyncpg://agentalyze:${POSTGRES_PASSWORD:-agentalyze-dev}@postgres:5432/agentalyze
+      AGENTALYZE_RESULTS_DIR: /app/results
+      AGENTALYZE_FIXTURES_DIR: /app/fixtures
+      AGENTALYZE_MAX_ACTIVE_SUITE_RUNS: "2"
+      AGENTALYZE_API_RUNS_RATE_LIMIT: "5/minute"
+      AGENTALYZE_LOG_FORMAT: json
+      # Ключи облачных провайдеров — только из окружения/Vault, не из образа.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - results_data:/app/results
+      - ./providers.yaml:/app/providers.yaml:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # Глубокая проверка: БД доступна И хотя бы один провайдер жив.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=5); sys.exit(0 if r.status==200 else 1)\""]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+
+volumes:
+  pg_data:
+  results_data:

@@ -45,11 +45,16 @@ RUN pip install --no-cache-dir "playwright==${PLAYWRIGHT_VERSION}"
 # package: editing source code below never invalidates this heavy layer.
 # NOTE: this image ships system Python WITHOUT the venv module, so packages
 # are installed straight into /usr/local/lib/python3.12/dist-packages.
+#
+# The [api] extra adds the HTTP-service stack (`agentalyze serve`): FastAPI,
+# SQLAlchemy/Alembic, slowapi, structlog, prometheus-client. It is inert for
+# pure CLI usage but makes THIS image usable as both the CLI tool and the
+# production API server without two divergent images.
 COPY pyproject.toml README.md LICENSE.md ./
 RUN mkdir -p src/agentalyze \
     && echo '"""Placeholder package: exists only to resolve dependencies."""' \
         > src/agentalyze/__init__.py \
-    && pip install .
+    && pip install ".[api]"
 
 # --- Stage 2: minimal runtime -----------------------------------------------
 FROM mcr.microsoft.com/playwright/python:v${PLAYWRIGHT_VERSION}-noble AS runtime
@@ -69,6 +74,11 @@ COPY --from=deps-builder /usr/local/lib/python3.12/dist-packages \
 # cheap and deps stay cached).
 COPY src/ ./src/
 COPY pyproject.toml README.md LICENSE.md ./
+# Schema migrations are RUNTIME data for service mode (`agentalyze serve`
+# upgrades to head on startup); they live next to WORKDIR so the app finds
+# them regardless of how the package itself was installed.
+COPY alembic.ini ./alembic.ini
+COPY migrations/ ./migrations/
 RUN rm -rf /usr/local/lib/python3.12/dist-packages/agentalyze* \
     && pip install --no-deps . \
     && rm -rf ./build
