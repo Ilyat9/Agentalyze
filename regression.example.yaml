@@ -1,0 +1,17 @@
+# Optional per-task configuration for `agentalyze regression-check`.
+#
+# Copy to `regression.yaml` to activate (or point --regression-config /
+# AGENTALYZE_REGRESSION_CONFIG_PATH at it). The file is OPTIONAL: without it
+# the gate behaves exactly as before — every SUCCESS -> FAILURE_* transition
+# counts as a regression.
+#
+# Semantics of an entry: the task is still shown in every diff (marked
+# "[excluded from gate]"), but its regressions do NOT count towards
+# regressed_count and cannot turn the CI gate red by themselves. Use this for
+# tasks that are historically noisy under a specific model (flaky verifier,
+# timing-sensitive fixture), not for hiding real breakage.
+excluded_from_gate:
+  - task_id: err-flaky-widget-03        # required; must match a task id exactly
+    reason: verifier flakes historically on this generator fixture   # free text
+  # Bare ids are also fine when no explanation is needed:
+  # - nav-tabs-secret-03

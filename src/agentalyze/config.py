@@ -58,6 +58,14 @@ class Settings(BaseSettings):
             "agentalyze.providers.factory.load_providers."
         ),
     )
+    regression_config_path: Path = Field(
+        default=Path("./regression.yaml"),
+        description=(
+            "Optional per-task regression-gate configuration (see "
+            "regression.example.yaml). A missing file means 'no exclusions' — "
+            "the regression-check gate behaves exactly as without this setting."
+        ),
+    )
 
     @field_validator("fixtures_dir", "results_dir", mode="after")
     @classmethod

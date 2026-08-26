@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 from agentalyze.config import Settings
+from agentalyze.regression.config import RegressionConfigError, load_regression_config
 from agentalyze.regression.diff import TaskDiff, TaskDiffStatus, compute_regression
 from agentalyze.regression.storage import (
     BaselineNotSetError,
@@ -54,6 +55,9 @@ def _print_diff_line(diff: TaskDiff, settings: Settings) -> None:
         line += f"  cost_delta=${diff.cost_delta_usd:+.4f}"
     if diff.steps_delta is not None:
         line += f"  steps_delta={diff.steps_delta:+d}"
+    if diff.gate_excluded:
+        # The pair stays fully visible; only its gate impact is waived.
+        line += "  [excluded from gate]"
     print(line)
     # The trace pointer is what a developer follows right after seeing the
     # regression line — one concrete artifact per side of the comparison.
@@ -82,7 +86,15 @@ def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    report = compute_regression(baseline, new)
+    config_path = getattr(args, "regression_config", None)
+    regression_config = load_regression_config(Path(config_path or settings.regression_config_path))
+    try:
+        excluded_ids = regression_config.excluded_task_ids()
+    except RegressionConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    report = compute_regression(baseline, new, excluded_task_ids=excluded_ids)
     report_path = save_regression_report(report, settings.results_dir)
 
     # ------------------------ human-readable summary -------------------------
@@ -94,6 +106,16 @@ def cmd_regression_check(args: argparse.Namespace, settings: Settings) -> int:
           f"{len(report.provider_summary)} common provider(s).")
     print(f"Regressed: {report.regressed_count}   Fixed: {report.fixed_count}   "
           f"Net change: {report.net_change:+d}")
+    excluded_regressions = [
+        d for d in report.diffs
+        if d.status is TaskDiffStatus.REGRESSED and d.gate_excluded
+    ]
+    if excluded_regressions:
+        print(
+            f"NOTE {len(excluded_regressions)} regressed pair(s) on the "
+            "regression.yaml allowlist are shown below but excluded from the "
+            "gate count."
+        )
     if report.providers_only_in_baseline:
         print("NOTE providers only in BASELINE (not compared): "
               + ", ".join(report.providers_only_in_baseline))
@@ -182,6 +204,12 @@ def register_parsers(
     check_parser.add_argument(
         "--allow-regressions", action="store_true",
         help="Report regressions but always exit 0 (for manual inspection).",
+    )
+    check_parser.add_argument(
+        "--regression-config", default=None,
+        help=("Path to an optional regression.yaml (allowlist of noisy tasks "
+              "excluded from the gate). Defaults to ./regression.yaml; a "
+              "missing file means no exclusions."),
     )
     check_parser.add_argument("--providers-config", default=None)
     check_parser.add_argument("--results-dir", default=None)

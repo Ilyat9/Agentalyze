@@ -41,6 +41,10 @@ class TaskDiff(BaseModel):
     task_id: str
     provider_name: str
     status: TaskDiffStatus
+    #: True when the task is on the regression.yaml allowlist: the pair is
+    #: still reported here (nothing is hidden), but its REGRESSED status does
+    #: not count towards regressed_count / the CI gate.
+    gate_excluded: bool = False
     #: None on the side where the pair does not exist (NEWLY_ADDED / REMOVED).
     baseline_outcome: RunOutcome | None
     new_outcome: RunOutcome | None
@@ -125,7 +129,10 @@ def _index_traces(
 
 
 def _build_diff(
-    status: TaskDiffStatus, baseline: RunTrace | None, new: RunTrace | None
+    status: TaskDiffStatus,
+    baseline: RunTrace | None,
+    new: RunTrace | None,
+    gate_excluded: bool = False,
 ) -> TaskDiff:
     assert baseline is not None or new is not None
     cost_delta: float | None = None
@@ -143,6 +150,7 @@ def _build_diff(
         task_id=anchor.task_id,
         provider_name=anchor.provider_name,
         status=status,
+        gate_excluded=gate_excluded,
         baseline_outcome=baseline.outcome if baseline else None,
         new_outcome=new.outcome if new else None,
         baseline_run_id=baseline.run_id if baseline else None,
@@ -154,14 +162,27 @@ def _build_diff(
 
 
 def compute_regression(
-    baseline: SuiteRunResult, new: SuiteRunResult
+    baseline: SuiteRunResult,
+    new: SuiteRunResult,
+    *,
+    excluded_task_ids: frozenset[str] | None = None,
 ) -> SuiteRegressionReport:
     """Compare two loaded suite runs; pure, no side effects.
+
+    ``excluded_task_ids`` (from the optional regression.yaml allowlist) marks
+    matching pairs with ``gate_excluded=True``: they remain visible as diffs,
+    but a SUCCESS -> FAILURE_* transition on them does NOT increment
+    ``regressed_count`` (nor the per-provider breakdown), so it cannot fail
+    the CI gate by itself. Rationale for the simple allowlist (vs. a
+    "2+ failures out of last N runs" sliding window): runs are stored whole
+    and compared pairwise — there is no per-task outcome history to compute a
+    window over; see regression/config.py.
 
     Raises:
         ValueError: if either run contains duplicate (task_id, provider_name)
             pairs — that would make the pairing ambiguous.
     """
+    excluded = excluded_task_ids or frozenset()
     baseline_index = _index_traces(baseline, "baseline")
     new_index = _index_traces(new, "new")
 
@@ -195,9 +216,20 @@ def compute_regression(
             status = TaskDiffStatus.FIXED
         else:
             status = TaskDiffStatus.REGRESSED
-        diffs.append(_build_diff(status, base_trace, new_trace))
+        diffs.append(
+            _build_diff(
+                status,
+                base_trace,
+                new_trace,
+                # Only REGRESSED pairs carry the waiver marker: a FIX on an
+                # allowlisted task must stay a full, unqualified win.
+                gate_excluded=status is TaskDiffStatus.REGRESSED and task_id in excluded,
+            )
+        )
 
-    regressed = sum(1 for d in diffs if d.status is TaskDiffStatus.REGRESSED)
+    regressed = sum(
+        1 for d in diffs if d.status is TaskDiffStatus.REGRESSED and not d.gate_excluded
+    )
     fixed = sum(1 for d in diffs if d.status is TaskDiffStatus.FIXED)
 
     summary: dict[str, ProviderRegressionSummary] = {}
@@ -207,7 +239,9 @@ def compute_regression(
             provider_name=provider,
             compared_pairs=len(provider_diffs),
             regressed_count=sum(
-                1 for d in provider_diffs if d.status is TaskDiffStatus.REGRESSED
+                1
+                for d in provider_diffs
+                if d.status is TaskDiffStatus.REGRESSED and not d.gate_excluded
             ),
             fixed_count=sum(
                 1 for d in provider_diffs if d.status is TaskDiffStatus.FIXED
