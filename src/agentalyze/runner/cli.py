@@ -22,7 +22,7 @@ from agentalyze.tasks.registry import TASKS, TASKS_BY_ID
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentalyze",
-        description="Agentalyze benchmark harness (see ROADMAP.md for phases).",
+        description="Agentalyze benchmark harness (see docs/ROADMAP.md for project history).",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

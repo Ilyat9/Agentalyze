@@ -30,9 +30,24 @@ Eval harness for LLM agents working with tools and a real browser. Вместо
 * **Regression-режим для CI**: детект деградации между двумя прогонами
   с числовыми кодами выхода, пригодными для гейта в pull request.
 
-Статус: **все фазы (0–7) завершены** — см. [`ROADMAP.md`](ROADMAP.md).
-Известные границы применимости честно собраны в
-[`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
+Статус: **проект завершён** — история разработки в
+[`docs/ROADMAP.md`](docs/ROADMAP.md). Известные границы применимости честно
+собраны в [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md).
+
+## Содержание
+
+1. [Быстрый старт](#быстрый-старт)
+2. [Архитектура](#архитектура)
+3. [Task suite](#task-suite)
+4. [Чем Agentalyze отличается от общих бенчмарков](#чем-agentalyze-отличается-от-общих-бенчмарков)
+5. [Providers](#providers)
+6. [Running evaluations](#running-evaluations)
+7. [Regression checks / CI integration](#regression-checks--ci-integration)
+8. [Docker](#docker)
+9. [Development](#development)
+10. [Design decisions](#design-decisions)
+11. [Roadmap / Status](#roadmap--status)
+12. [Лицензия](#лицензия)
 
 ## Быстрый старт
 
@@ -45,7 +60,13 @@ cp providers.example.yaml providers.yaml      # укажите своих про
 
 docker build -t agentalyze .
 export OPENROUTER_API_KEY=sk-or-...           # ключ только в окружении, не в образе
-agentalyze_run() { docker run --rm -e OPENROUTER_API_KEY -v "$(pwd)/results:/app/results" -v "$(pwd)/providers.yaml:/app/providers.yaml:ro" agentalyze "$@"; }
+agentalyze_run() {
+  docker run --rm \
+    -e OPENROUTER_API_KEY \
+    -v "$(pwd)/results:/app/results" \
+    -v "$(pwd)/providers.yaml:/app/providers.yaml:ro" \
+    agentalyze "$@"
+}
 
 agentalyze_run tasks                          # список всех задач
 agentalyze_run run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
@@ -61,32 +82,33 @@ agentalyze run --task form-fill-basic-01 --provider gpt-4o-mini-via-openrouter
 
 ## Архитектура
 
-Проект слоистый; каждый слой Фазы строил поверх предыдущих и ничего о них
+Проект слоистый; каждый слой строился поверх предыдущих и ничего о них
 не предполагал сверх явных интерфейсов:
 
 ```mermaid
 flowchart TB
-    subgraph PH1["tasks · Фаза 1"]
+    subgraph PH1["tasks"]
         T["Реестр 18 задач<br/>HTML-фикстуры + fixture-сервер<br/>программные верификаторы (финальный DOM)"]
     end
-    subgraph PH2["providers · Фаза 2"]
+    subgraph PH2["providers"]
         P["OpenAI-совместимый API / Ollama<br/>retry (tenacity) · health-check"]
     end
-    subgraph PH3["runner · Фаза 3"]
+    subgraph PH3["runner"]
         R["ReAct-цикл в реальном Chromium<br/>browser-инструменты: navigate / click / type /<br/>select / submit / extract / wait"]
     end
     T --> RUN(("×"))
     P --> RUN
     R --> TRACE["RunTrace<br/>results/&lt;run_id&gt;/trace.json + screenshots/"]
-    TRACE --> PH4["analysis · Фаза 4<br/>failure-таксономия · агрегаты метрик<br/>калибровка уверенности (ECE) · цены"]
-    PH4 --> PH5["orchestration · Фаза 5<br/>suite-runner · compare / inspect → report.md"]
-    PH5 --> PH6["regression · Фаза 6<br/>diff vs baseline · exit-коды 0/1/2"]
+    TRACE --> PH4["analysis<br/>failure-таксономия · агрегаты метрик<br/>калибровка уверенности (ECE) · цены"]
+    PH4 --> PH5["orchestration<br/>suite-runner · compare / inspect → report.md"]
+    PH5 --> PH6["regression<br/>diff vs baseline · exit-коды 0/1/2"]
     PH6 --> OUT["Отчёт / CI-gate"]
     style OUT fill:#1f6feb,stroke:#1f6feb,color:#ffffff
 ```
 
 Поток данных одной строкой: `Task + Provider → RunTrace → Metrics → Report`.
-Аналитические слои (Фазы 4–6) **ничего не запускают** — они читают готовые
+Аналитические слои (`analysis`, `orchestration`, `regression`) **ничего не
+запускают** — они читают готовые
 трейсы; поэтому всё это покрывается быстрыми тестами без браузера.
 
 ## Task suite
@@ -264,7 +286,7 @@ agentalyze inspect --suite-run <id> --outcome failure_verifier
 
 ## Regression checks / CI integration
 
-Regression-режим (Фаза 6) сравнивает два suite-прогона по задачам и провайдерам:
+Regression-режим сравнивает два suite-прогона по задачам и провайдерам:
 success rate, число шагов, латентность, стоимость. Статусы различий на задачу:
 `regressed`, `fixed`, `unchanged`, `newly_added`, `removed`.
 
@@ -371,12 +393,12 @@ pytest                                                            # = первы
 ```
 src/agentalyze/
 ├── config.py            # Settings (pydantic-settings, env AGENTALYZE_*)
-├── tasks/               # Фаза 1: реестр 18 задач, фикстур-сервер, верификаторы
-├── providers/           # Фаза 2: openai_compatible + ollama, factory, retry
-├── runner/              # Фаза 3: ReAct-цикл, browser-инструменты, трейс, CLI
-├── analysis/            # Фаза 4: failure-таксономия, метрики, калибровка, цены
-├── orchestration/       # Фаза 5: suite-runner, report.md, compare/inspect
-└── regression/          # Фаза 6: diff прогонов, baseline, regression-check
+├── tasks/               # реестр 18 задач, фикстур-сервер, верификаторы
+├── providers/           # openai_compatible + ollama, factory, retry
+├── runner/              # ReAct-цикл, browser-инструменты, трейс, CLI
+├── analysis/            # failure-таксономия, метрики, калибровка, цены
+├── orchestration/       # suite-runner, report.md, compare/inspect
+└── regression/          # diff прогонов, baseline, regression-check
 tests/                   # pytest; маркеры browser / requires_ollama / e2e_live
 fixtures/                # локальные HTML-фикстуры по категориям
 examples/                # end-to-end сценарий (Docker + Ollama) + sample_report.md
@@ -404,7 +426,7 @@ pricing.example.yaml     # шаблон таблицы цен для расчё�
    Верификатор получает уже открытый `Page` в финальном состоянии и отвечает
    на один вопрос «достигнут ли ожидаемый DOM». Он никогда не смотрит шаги
    агента: разбор *как* агент шёл к результату — задача отдельного слоя
-   таксономии отказов (Фаза 4). Это устраняет соблазн «верификации по
+   таксономии отказов (слой `analysis`). Это устраняет соблазн «верификации по
    самооценке модели» на уровне типов.
 
 2. **OllamaProvider — обёртка, а не дублирование**
@@ -449,12 +471,12 @@ pricing.example.yaml     # шаблон таблицы цен для расчё�
 
 ## Roadmap / Status
 
-Проект построен поэтапно, каждая фаза — рабочий шаг; история плана сохранена
-в [`ROADMAP.md`](ROADMAP.md). **Все фазы 0–7 завершены**: конфигурация,
-task-suite, provider layer, раннер с реальным Chromium, метрики и
-failure-таксономия, сравнение моделей и отчёты, regression-режим, упаковка
-(Docker, CI, документация). Честный список границ применимости и известных
-упрощений — [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
+Проект развивался инкрементально — от ядра (задачи, провайдеры, раннер) к
+аналитике и CI-интеграции; каждая веха оставляла рабочую, покрытую тестами
+версию. История разработки сохранена в
+[`docs/ROADMAP.md`](docs/ROADMAP.md); сегодня всё перечисленное там
+реализовано. Честный список границ применимости и известных
+упрощений — [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md).
 
 ## Лицензия
 
