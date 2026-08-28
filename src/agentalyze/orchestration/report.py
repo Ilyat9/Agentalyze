@@ -16,6 +16,7 @@ whole point is honest reporting.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from agentalyze.analysis.calibration import CalibrationReport, compute_calibration_report
@@ -47,6 +48,13 @@ _FAILURE_TAG_DESCRIPTIONS: dict[FailureTag, str] = {
         "verifier disagreed"
     ),
     FailureTag.GRACEFUL_GIVE_UP: "agent explicitly declared failure via done(success=false)",
+    FailureTag.CODE_EXECUTION_ERROR: (
+        "code-agent runner only: generated code raised inside the executor"
+    ),
+    FailureTag.UNPARSEABLE_CODE_RESPONSE: (
+        "code-agent runner only: smolagents could not extract a code block "
+        "from the model's response at all"
+    ),
 }
 
 _OUTCOME_LABELS: dict[RunOutcome, str] = {
@@ -398,6 +406,157 @@ def generate_report(result: SuiteRunResult, results_dir: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_report(result), encoding="utf-8")
     return path
+
+
+# ---------------------------------------------------------------------------
+# "Tool-calling vs Code generation (smolagents)" comparison section.
+#
+# A SuiteRunConfig/SuiteRunResult always uses exactly ONE agent_style (see
+# suite_runner.py) — comparing the two means running `compare` twice and
+# feeding both resulting trace lists here. Every number below is computed
+# straight from the traces given, same principle as build_honest_conclusion:
+# no template text without real numbers behind it.
+# ---------------------------------------------------------------------------
+
+
+def _avg(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def build_agent_style_comparison_section(
+    traces_by_style: dict[str, list[RunTrace]],
+) -> list[str]:
+    """Success rate / steps / cost / latency / failure tags, per agent_style.
+
+    ``traces_by_style`` keys are agent_style values ("tool_calling", "code");
+    each value is the flat trace list of one (otherwise matching) suite run.
+    Traces are NOT required to share task ids 1:1 — callers that want a
+    fair apples-to-apples comparison should pass two runs of the SAME task
+    selection, but this function only reports what it is given, honestly.
+    """
+    lines = [
+        "## Tool-calling vs Code generation (smolagents)",
+        "",
+        ("_Вычислено программно из реальных чисел прогонов ниже — без "
+        "предположений и без переноса цифр из документации smolagents._"),
+        "",
+    ]
+
+    styles = [s for s in ("tool_calling", "code") if s in traces_by_style]
+    if len(styles) < 2:
+        lines.append(
+            "_Для сравнения нужны прогоны обоих стилей (`--agent-style "
+            "tool_calling` и `--agent-style code`); здесь есть только: "
+            + (", ".join(styles) or "ни одного") + "._"
+        )
+        lines.append("")
+        return lines
+
+    lines.append("| Метрика | tool_calling | code |")
+    lines.append("| --- | ---: | ---: |")
+
+    per_style_traces = {style: traces_by_style[style] for style in styles}
+    for style, traces in per_style_traces.items():
+        if any(t.agent_style != style for t in traces):
+            msg = f"traces_by_style[{style!r}] contains a trace with a different agent_style"
+            raise ValueError(msg)
+
+    counts = {style: len(traces) for style, traces in per_style_traces.items()}
+    success_rates = {
+        style: (sum(1 for t in traces if t.success) / len(traces) if traces else None)
+        for style, traces in per_style_traces.items()
+    }
+    avg_steps = {
+        style: _avg([len(t.steps) for t in traces]) for style, traces in per_style_traces.items()
+    }
+    avg_cost = {
+        style: _avg([t.total_cost_usd for t in traces if t.total_cost_usd is not None])
+        for style, traces in per_style_traces.items()
+    }
+    avg_latency = {
+        style: _avg([t.wall_clock_seconds for t in traces])
+        for style, traces in per_style_traces.items()
+    }
+
+    def _row(label: str, values: dict[str, str]) -> str:
+        return f"| {label} | {values['tool_calling']} | {values['code']} |"
+
+    def _opt(value: float | None, fmt: Callable[[float], str]) -> str:
+        return "N/A" if value is None else fmt(value)
+
+    lines.append(_row("Runs", {s: str(counts[s]) for s in styles}))
+    lines.append(
+        _row("Success rate", {s: _opt(success_rates[s], _pct) for s in styles})
+    )
+    lines.append(
+        _row("Avg steps", {s: _opt(avg_steps[s], lambda v: f"{v:.1f}") for s in styles})
+    )
+    lines.append(_row("Avg cost", {s: _opt(avg_cost[s], _cost) for s in styles}))
+    lines.append(
+        _row("Avg wall-clock", {s: _opt(avg_latency[s], _seconds) for s in styles})
+    )
+    lines.append("")
+
+    # steps delta: the specific claim smolagents' own docs make ("~30% fewer
+    # steps") — reported here as a measured fact about THIS run, or absent
+    # if there is nothing to measure it against, never assumed.
+    tc = avg_steps.get("tool_calling")
+    code = avg_steps.get("code")
+    if tc is not None and code is not None and tc > 0:
+        delta_pct = (tc - code) / tc * 100
+        direction = "меньше" if delta_pct > 0 else "больше"
+        lines.append(
+            f"code-agent сделал в среднем **{abs(delta_pct):.1f}% {direction}** шагов, "
+            f"чем tool-calling, на этом конкретном прогоне "
+            f"({code:.1f} vs {tc:.1f} среднее число шагов)."
+        )
+        lines.append("")
+
+    lines.append("**Распределение failure tags по стилю:**")
+    lines.append("")
+    lines.append("| Tag | tool_calling | code |")
+    lines.append("| --- | ---: | ---: |")
+    tag_counts: dict[str, dict[FailureTag, int]] = {style: {} for style in styles}
+    for style, traces in per_style_traces.items():
+        for trace in traces:
+            for tag in classify_failure(trace):
+                tag_counts[style][tag] = tag_counts[style].get(tag, 0) + 1
+    any_tags = any(tag_counts[style] for style in styles)
+    if not any_tags:
+        lines.append("| _(ни одного тега ни в одном стиле)_ | 0 | 0 |")
+    else:
+        for tag in FailureTag:
+            tc_count = tag_counts["tool_calling"].get(tag, 0)
+            code_count = tag_counts["code"].get(tag, 0)
+            if tc_count or code_count:
+                lines.append(f"| `{tag.value}` | {tc_count} | {code_count} |")
+    lines.append("")
+    return lines
+
+
+def render_agent_style_comparison_report(
+    traces_by_style: dict[str, list[RunTrace]],
+    *,
+    fake_provider: bool,
+) -> str:
+    """Standalone markdown report for examples/code_agent_vs_tool_calling_report.md."""
+    header = [
+        "# Tool-calling vs Code generation (smolagents) — сравнительный прогон",
+        "",
+        (
+            "**Провайдер:** FakeProvider (детерминированный, без реального вызова "
+            "модели)." if fake_provider else "**Провайдер:** реальная модель."
+        ),
+        "",
+        (
+            "Это НЕ то же самое, что собственный бенчмарк smolagents: набор задач, "
+            "их домен и объём выборки здесь другие (30 задач Agentalyze, не задачи "
+            "smolagents). Цифры ниже — честный результат именно этого прогона на "
+            "этом наборе задач, не универсальное утверждение про code-agent вообще."
+        ),
+        "",
+    ]
+    return "\n".join(header + build_agent_style_comparison_section(traces_by_style))
 
 
 __all__ = [

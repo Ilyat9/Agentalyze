@@ -237,6 +237,40 @@ results/<run_id>/screenshots/step_N.png  # скриншот страницы п�
 Полезные флаги: `--providers-config`, `--results-dir`, `--fixtures-dir`
 (переопределяют соответствующие переменные окружения).
 
+### Второй раннер: code-generation вместо tool-calling — `--agent-style code`
+
+Помимо структурного tool-calling ReAct-цикла выше, есть опциональный второй
+раннер на базе [`smolagents`](https://github.com/huggingface/smolagents)
+`CodeAgent`: модель пишет короткий Python-код, вызывающий инструменты как
+обычные функции (`click('e3')`), вместо structured JSON tool calls.
+Реализация — тонкие адаптеры (`src/agentalyze/runner/code_agent/`) поверх тех
+же `Provider`/browser-инструментов/`RunTrace`, что и основной раннер.
+
+```bash
+pip install -e ".[code-agent]"
+agentalyze run --task nav-simple-link-01 --provider gpt-4o-mini-via-openrouter --agent-style code
+agentalyze compare --all-tasks --providers gpt-4o-mini-via-openrouter --agent-style code
+```
+
+Трейсы обоих раннеров попадают в один и тот же формат `RunTrace` (новое поле
+`agent_style`: `"tool_calling"` или `"code"`), проходят через один и тот же
+`inspect`/failure-taxonomy/regression-check конвейер.
+
+**Важно:** `AGENTALYZE_CODE_AGENT_EXECUTOR_TYPE` по умолчанию `local` —
+smolagents' `LocalPythonExecutor` НЕ является security-sandbox (это
+явно написано в его собственной документации). Режимы `docker`/`e2b`/
+`modal`/`blaxel` сегодня не работают с браузерными инструментами этого
+проекта вообще (подтверждено живым прогоном, не предположением) — подробности
+и почему в [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md#code-agent-runner-smolagents-codeagent).
+
+Честный, вычисленный из реальных чисел (не смоделированный) прогон обоих
+стилей на всех 30 задачах suite с детерминированным скриптовым
+провайдером — [examples/code_agent_vs_tool_calling_report.md](examples/code_agent_vs_tool_calling_report.md).
+Это не бенчмарк smolagents на их собственных задачах: другой набор задач,
+другой домен, другая (гораздо меньшая) выборка — отчёт честно об этом
+предупреждает и не переносит заявление «~30% меньше шагов» из документации
+smolagents как факт про этот проект.
+
 ### Весь suite или подмножество — `agentalyze compare`
 
 ```bash
@@ -488,6 +522,8 @@ docker-compose.service.yml up -d --build`. Kubernetes-манифесты: `deplo
 python3.11+ -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,browser]"
 playwright install chromium
+# Опционально, для второго (code-generation) раннера:
+pip install -e ".[code-agent]"
 ```
 
 Тесты разделены маркерами (заданы в `pyproject.toml`):
