@@ -43,8 +43,10 @@ import logging
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -103,6 +105,13 @@ class SuiteRunConfig(BaseModel):
     #: combination holds a real Chromium instance and provider connections,
     #: so raise this with resource cost in mind.
     max_concurrent: int = Field(default=1, ge=1)
+    #: Which runner drives every (task x provider) combination in this run:
+    #: the default structured tool-calling ReAct loop, or the smolagents
+    #: CodeAgent-based runner (agentalyze.runner.code_agent.loop). One
+    #: SuiteRunConfig always uses exactly one style — comparing the two
+    #: means running `compare` twice, once per style (see
+    #: examples/code_agent_vs_tool_calling_report.md).
+    agent_style: Literal["tool_calling", "code"] = Field(default="tool_calling")
 
     @field_validator("provider_names")
     @classmethod
@@ -127,6 +136,25 @@ class SuiteRunResult(BaseModel):
     #: provider's traces of this run. Providers with zero completed traces
     #: are absent (compute_metrics refuses to aggregate over nothing).
     metrics_by_provider: dict[str, TaskSuiteMetrics] = Field(default_factory=dict)
+
+
+#: Signature shared by react_loop.run_task and code_agent.loop.run_task_code_agent.
+RunTaskFn = Callable[[Task, Provider, Settings], Awaitable[RunTrace]]
+
+
+def _resolve_run_task(agent_style: Literal["tool_calling", "code"]) -> RunTaskFn:
+    """Pick the per-(task, provider) runner for this suite run.
+
+    Lazy import for 'code': the code-agent runner needs the optional
+    smolagents dependency (pip install -e ".[code-agent]"), which a
+    tool_calling-only install never has and should never be forced to pay
+    the import cost of.
+    """
+    if agent_style == "code":
+        from agentalyze.runner.code_agent.loop import run_task_code_agent
+
+        return run_task_code_agent
+    return run_task
 
 
 def select_tasks(config: SuiteRunConfig) -> list[Task]:
@@ -231,10 +259,13 @@ async def run_suite(
     settings.ensure_results_dir()
     save_suite_run(result, settings.results_dir)  # initial snapshot: the run has begun
 
+    run_task_fn = _resolve_run_task(config.agent_style)
+
     total = len(combinations)
     print(
         f"Suite run {result.suite_run_id}: {len(tasks)} task(s) x "
-        f"{len(selected_providers)} provider(s) = {total} combination(s)",
+        f"{len(selected_providers)} provider(s) = {total} combination(s) "
+        f"[agent_style={config.agent_style}]",
         flush=True,
     )
 
@@ -244,10 +275,10 @@ async def run_suite(
 
     if config.max_concurrent == 1:
         await _run_all_sequential(combinations, result, settings, total,
-                                  completed_durations)
+                                  completed_durations, run_task_fn)
     else:
         await _run_all_parallel(combinations, result, settings, total,
-                                config.max_concurrent, completed_durations)
+                                config.max_concurrent, completed_durations, run_task_fn)
 
     duration = (result.finished_at - result.started_at).total_seconds()
     print(f"Suite run {result.suite_run_id} finished: "
@@ -278,6 +309,7 @@ async def _run_all_sequential(
     settings: Settings,
     total: int,
     completed_durations: list[float],
+    run_task_fn: RunTaskFn = run_task,
 ) -> None:
     """The original strictly sequential path (``max_concurrent == 1``)."""
     for index, (task, provider) in enumerate(combinations, start=1):
@@ -289,7 +321,7 @@ async def _run_all_sequential(
         )
         combo_started = time.monotonic()
         try:
-            trace = await run_task(task, provider, settings)
+            trace = await run_task_fn(task, provider, settings)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -316,6 +348,7 @@ async def _run_all_parallel(
     total: int,
     max_concurrent: int,
     completed_durations: list[float],
+    run_task_fn: RunTaskFn = run_task,
 ) -> None:
     """Bounded-parallel path (``max_concurrent > 1``).
 
@@ -342,7 +375,7 @@ async def _run_all_parallel(
             )
             combo_started = time.monotonic()
             try:
-                trace = await run_task(task, provider, settings)
+                trace = await run_task_fn(task, provider, settings)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

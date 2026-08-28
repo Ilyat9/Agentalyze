@@ -40,6 +40,16 @@ class FailureTag(str, Enum):
     TOOL_ERROR_MISHANDLED = "tool_error_mishandled"
     PREMATURE_DONE = "premature_done"
     GRACEFUL_GIVE_UP = "graceful_give_up"
+    #: Code-agent runner only (agentalyze.runner.code_agent): the model's
+    #: generated Python code raised while executing inside smolagents'
+    #: executor — the code-generation-path equivalent of TOOL_ERROR_MISHANDLED
+    #: for a run that never reached a coherent action at all.
+    CODE_EXECUTION_ERROR = "code_execution_error"
+    #: Code-agent runner only: smolagents could not extract a code block from
+    #: the model's response at all (smolagents.utils.AgentParsingError) —
+    #: distinct from CODE_EXECUTION_ERROR, where a code block WAS extracted
+    #: and ran, but raised.
+    UNPARSEABLE_CODE_RESPONSE = "unparseable_code_response"
 
 
 # ---------------------------------------------------------------------------
@@ -353,6 +363,20 @@ def classify_failure(
     # exhaustion, and conflating "stuck" with "ran out of rope" would hide it.
     if trace.outcome in (RunOutcome.FAILURE_MAX_STEPS, RunOutcome.FAILURE_TIMEOUT):
         tags |= _budget_tags(acting, stuck_tail_min_repeats)
+
+    # Code-agent-only tags: derived from the ``tool_error`` text the code-agent
+    # runner (agentalyze.runner.code_agent.loop) writes for a step whose
+    # smolagents ActionStep carried an AgentError. Checked across ALL steps,
+    # not just ``acting`` ones, since a parsing/execution error step may have
+    # no tool_call at all (the model's code never resolved to a real action).
+    for step in trace.steps:
+        if not step.tool_error:
+            continue
+        if step.tool_error.startswith("AgentParsingError"):
+            tags.add(FailureTag.UNPARSEABLE_CODE_RESPONSE)
+        elif step.tool_error.startswith(("AgentExecutionError", "AgentToolCallError",
+                                          "AgentToolExecutionError")):
+            tags.add(FailureTag.CODE_EXECUTION_ERROR)
 
     done_step = _first_successful_done_step(acting)
     if (

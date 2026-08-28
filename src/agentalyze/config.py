@@ -101,6 +101,27 @@ class Settings(BaseSettings):
     vault_token_env_var: str = Field(default="VAULT_TOKEN")
     vault_kv_mount: str = Field(default="secret")
 
+    #: Isolation for the code-agent runner's (agentalyze.runner.code_agent)
+    #: generated-code execution: smolagents' 'docker'/'local'/'e2b'/'modal'/
+    #: 'blaxel' executor types. Default is 'local' — NOT 'docker' — because
+    #: 'docker'/'e2b'/'modal'/'blaxel' are all "remote executor" modes in
+    #: smolagents, and remote executors reconstruct each Tool via a bare
+    #: `ToolClassName()` call inside the sandbox (see
+    #: smolagents.tools.get_tools_definition_code); this project's tool
+    #: adapters require `(ctx, recorder)` constructor arguments (a live
+    #: Playwright Page + the owning event loop cannot be serialized into a
+    #: sandbox), so every remote executor mode fails for THIS project's
+    #: tools (verified empirically: it does not raise, it silently hangs
+    #: until the task's wall-clock timeout — code_agent/loop.py now fails
+    #: fast instead). See docs/KNOWN_LIMITATIONS.md. 'local' is NOT a
+    #: security boundary either (smolagents' own LocalPythonExecutor
+    #: docstring says so) — the runner logs a warning whenever it is used,
+    #: and it must only be driven by a Provider (like FakeProvider in tests)
+    #: that never generates untrusted real code.
+    code_agent_executor_type: Literal["local", "docker", "e2b", "modal", "blaxel"] = Field(
+        default="local",
+    )
+
 
     @field_validator("fixtures_dir", "results_dir", mode="after")
     @classmethod

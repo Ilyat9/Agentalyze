@@ -55,6 +55,18 @@ api = [
 loadtest = [
     "locust>=2.20",
 ]
+# Second runner backend (`agentalyze run --agent-style code`): smolagents'
+# CodeAgent generates and executes Python code instead of structured tool
+# calls. Optional and separate from the default tool-calling path, which
+# never needs this (fairly heavy) dependency. Upper-bounded so a future
+# smolagents major release cannot silently break this integration.
+code-agent = [
+    # The [docker] extra pulls in the 'docker' SDK package, required by
+    # smolagents' executor_type="docker" (this project's default isolation
+    # mode for code-agent runs) — without it CodeAgent(executor_type="docker")
+    # fails immediately with ModuleNotFoundError, before ever touching a model.
+    "smolagents[docker]>=1.21,<2",
+]
 
 
 [project.scripts]
@@ -80,3 +92,10 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+# smolagents (optional [code-agent] extra) ships no py.typed marker, so mypy
+# cannot check against its real signatures. Scoped to this one third-party
+# package rather than relaxing strict mode project-wide.
+[[tool.mypy.overrides]]
+module = "smolagents.*"
+ignore_missing_imports = true

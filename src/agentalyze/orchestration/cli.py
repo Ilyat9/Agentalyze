@@ -75,6 +75,17 @@ def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
               file=sys.stderr)
         return 2
 
+    if getattr(args, "agent_style", "tool_calling") == "code":
+        try:
+            import agentalyze.runner.code_agent.loop  # noqa: F401
+        except ImportError:
+            print(
+                "error: --agent-style code requires the code-agent extra:\n"
+                '  pip install -e ".[code-agent]"',
+                file=sys.stderr,
+            )
+            return 2
+
     try:
         providers_all = load_providers(settings.providers_config_path)
     except Exception as exc:  # noqa: BLE001 - ProviderConfigError has an actionable message
@@ -108,6 +119,7 @@ def cmd_compare(args: argparse.Namespace, settings: Settings) -> int:
             provider_names=provider_names,
             category_filter=_parse_categories(args.category) if args.category else None,
             max_concurrent=args.max_concurrent,
+            agent_style=args.agent_style,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -273,6 +285,17 @@ def register_parsers(
     compare_parser.add_argument("--providers-config", default=None)
     compare_parser.add_argument("--results-dir", default=None)
     compare_parser.add_argument("--fixtures-dir", default=None)
+    compare_parser.add_argument(
+        "--agent-style",
+        choices=["tool_calling", "code"],
+        default="tool_calling",
+        help=(
+            "'tool_calling' (default) or 'code' (smolagents CodeAgent runner, "
+            "requires pip install -e '.[code-agent]'). Applies to every "
+            "combination in this suite run; compare the two by running "
+            "`compare` twice, once per style."
+        ),
+    )
 
     inspect_parser = subparsers.add_parser(
         "inspect",

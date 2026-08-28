@@ -49,6 +49,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override AGENTALYZE_FIXTURES_DIR for this invocation.",
     )
+    run_parser.add_argument(
+        "--agent-style",
+        choices=["tool_calling", "code"],
+        default="tool_calling",
+        help=(
+            "'tool_calling' (default): the structured tool-calling ReAct "
+            "loop. 'code': the smolagents CodeAgent runner (requires "
+            "pip install -e '.[code-agent]'); see "
+            "agentalyze.runner.code_agent and docs/KNOWN_LIMITATIONS.md."
+        ),
+    )
 
     subparsers.add_parser("tasks", help="List registered tasks and exit.").add_argument(
         "--tag",
@@ -322,7 +333,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    trace = asyncio.run(run_task(task, provider, settings))
+    if getattr(args, "agent_style", "tool_calling") == "code":
+        try:
+            from agentalyze.runner.code_agent.loop import run_task_code_agent
+        except ImportError:
+            print(
+                "error: --agent-style code requires the code-agent extra:\n"
+                '  pip install -e ".[code-agent]"',
+                file=sys.stderr,
+            )
+            return 2
+        trace = asyncio.run(run_task_code_agent(task, provider, settings))
+    else:
+        trace = asyncio.run(run_task(task, provider, settings))
     _print_summary(trace, task.title)
     return 0 if trace.success else 1
 

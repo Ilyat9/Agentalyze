@@ -18,6 +18,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -108,6 +109,16 @@ class RunTrace(BaseModel):
         ),
     )
     provider_name: str
+    agent_style: Literal["tool_calling", "code"] = Field(
+        default="tool_calling",
+        description=(
+            "Which runner produced this trace: the default structured "
+            "tool-calling ReAct loop, or the smolagents CodeAgent-based "
+            "runner (agentalyze.runner.code_agent.loop). Defaults to "
+            "'tool_calling' so traces saved before this field existed still "
+            "deserialize unchanged."
+        ),
+    )
     started_at: datetime
     finished_at: datetime
     outcome: RunOutcome
