@@ -23,6 +23,9 @@
 # Про extras: playwright живёт в extra [browser], но импортируется на уровне
 # модулей (runner, verifiers), поэтому lint и test-fast ставят [dev,browser] —
 # иначе mypy не найдёт типы playwright, а сборка тестов упадёт на import.
+# Аналогично smolagents живёт в extra [code-agent], но импортируется на уровне
+# модулей (runner/code_agent/* и их тесты), а pytest при collection импортирует
+# ВСЕ тестовые модули — поэтому все тестовые job'ы и lint ставят и [code-agent].
 # Сам Chromium-бинарник этим job'ам не нужен (это extra [browser] только
 # python-пакет; бинарник ставит `playwright install` лишь test-browser).
 # =============================================================================
@@ -53,7 +56,10 @@ jobs:
       - name: Install package with dev + browser extras
         # [browser] нужен здесь не для запуска браузера, а чтобы mypy видел
         # типы playwright (модули runner/verifiers импортируют его напрямую).
-        run: pip install -e ".[dev,browser,api]" types-PyYAML
+        # [code-agent] — чтобы mypy разрешал импорты smolagents в
+        # runner/code_agent (без py.typed он всё равно игнорирует их типы,
+        # но окружение должно совпадать с test-fast).
+        run: pip install -e ".[dev,browser,api,code-agent]" types-PyYAML
 
       - name: Ruff
         run: ruff check .
@@ -75,7 +81,11 @@ jobs:
       - name: Install package with dev + browser extras
         # Без [browser] сборка тестов падает: даже небраузерные тесты
         # импортируют agentalyze.runner, а тот на уровне модуля тянет playwright.
-        run: pip install -e ".[dev,browser,api]"
+        # Без [code-agent] сборка тестов тоже падает: pytest при collection
+        # импортирует ВСЕ тестовые модули, включая tests/runner/code_agent/,
+        # которые на уровне модуля импортируют smolagents (и code_agent-часть
+        # самого пакета).
+        run: pip install -e ".[dev,browser,api,code-agent]"
 
       - name: Run fast tests (no browser, no external services)
         run: pytest -m "not browser and not requires_ollama and not e2e_live"
@@ -92,7 +102,10 @@ jobs:
           cache: pip
 
       - name: Install package with browser extra
-        run: pip install -e ".[dev,browser,api]"
+        # [code-agent] обязателен и здесь: pytest при collection импортирует
+        # все тестовые модули (tests/runner/code_agent/ тянут smolagents),
+        # даже если сам прогон отфильтрован по -m browser.
+        run: pip install -e ".[dev,browser,api,code-agent]"
 
       - name: Resolve Playwright version (cache key component)
         id: pw-version
