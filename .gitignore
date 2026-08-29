@@ -29,3 +29,6 @@ providers.yaml
 
 # OS noise
 .DS_Store
+
+# Codegraph index
+.codegraph/
