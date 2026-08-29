@@ -180,9 +180,30 @@ def _diff_to_dict(diff: TaskDiff) -> dict[str, Any]:
 
 
 def _client_key(request: Request) -> str:
-    """Rate-limit bucket key: API-key identity when known, else client host."""
+    """Rate-limit bucket key: API-key identity when known, else client host.
+
+    Behind a local reverse proxy / tunnel (cloudflared, nginx on the same
+    host) every visitor's socket address is the proxy's (127.0.0.1), which
+    would collapse ALL visitors into one rate-limit bucket. In exactly that
+    setup the proxy sets ``CF-Connecting-IP`` with the visitor's real IP, so
+    it is trusted — but ONLY from a loopback/test client, never from a
+    remote socket: a direct visitor could otherwise spoof the header and
+    rotate buckets to bypass the limit.
+    """
     name = getattr(request.state, "api_key_name", None)
-    return f"key:{name}" if name else f"ip:{request.client.host if request.client else 'unknown'}"
+    if name:
+        return f"key:{name}"
+    remote = request.client.host if request.client else ""
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip and remote in _PROXY_TRUSTED_REMOTE_HOSTS:
+        return f"ip:{cf_ip}"
+    return f"ip:{remote or 'unknown'}"
+
+
+#: Socket hosts from which a CF-Connecting-IP header may be trusted (local
+#: reverse proxies/tunnels). "testclient" is the httpx TestClient address and
+#: exists only in tests.
+_PROXY_TRUSTED_REMOTE_HOSTS = {"127.0.0.1", "::1", "testclient"}
 
 # ---------------------------------------------------------------------------
 # App factory
