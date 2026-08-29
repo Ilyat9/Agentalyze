@@ -54,7 +54,7 @@ Eval harness for LLM agents working with tools and a real browser. Вместо
 6. [Running evaluations](#running-evaluations)
 7. [Regression checks / CI integration](#regression-checks--ci-integration)
 8. [Docker](#docker)
-9. [HTTP API / сервисный режим](#http-api--сервисный-режим)
+9. [HTTP API / сервисный режим](#http-api--сервисный-режим) — incl. [🌐 live demo](https://agentalyze-demo.onrender.com/demo)
 10. [Development](#development)
 11. [Design decisions](#design-decisions)
 12. [Roadmap / Status](#roadmap--status)
@@ -533,18 +533,38 @@ docker-compose.service.yml up -d --build`. Kubernetes-манифесты: `deplo
 
 ### Публичное демо (BYOK, опционально)
 
+> **🌐 Демо задеплоено и доступно онлайн: [agentalyze-demo.onrender.com/demo](https://agentalyze-demo.onrender.com/demo)**
+> Вставь свой OpenRouter/OpenAI-ключ, выбери задачу и запусти реального
+> браузерного агента прямо в браузере (доли цента за прогон с твоего аккаунта).
+
 Отдельная, выключенная по умолчанию поверхность для публичного
 демо-сайта: посетитель вставляет **свой** OpenRouter/OpenAI ключ, выбирает
-одну из трёх коротких задач и смотрит честный прогон в реальном Chromium
-(ключ живёт в памяти одного запроса, не логируется, не сохраняется;
-rate-limit по IP; allowlist из 3 `easy`-задач).
+одну из трёх коротких задач (или описывает свою) и смотрит честный прогон
+в реальном Chromium (ключ живёт в памяти одного запроса, не логируется,
+не сохраняется; rate-limit по IP; allowlist из 3 `easy`-задач).
 
 ```bash
 agentalyze serve --port 8000 --demo-mode   # или AGENTALYZE_DEMO_MODE_ENABLED=1
 # → http://localhost:8000/demo
 ```
 
-Модель угроз, деплой на бесплатный хостинг (HF Spaces) и гарантии по ключу:
+<p align="center">
+  <a href="https://agentalyze-demo.onrender.com/demo">
+    <img src="docs/screenshots/demo-light.png" width="800" alt="Публичное демо Agentalyze: форма с ключом, выбор задачи и трейс агента">
+  </a>
+</p>
+<p align="center">
+  <em>Публичное демо: ключевая гарантия — ключ обрабатывается на сервере один раз
+  и забывается. Слева — конфигурация запуска, справа — трейс агента.
+  <a href="docs/screenshots/demo-dark.png">Тёмная тема</a> ·
+  <a href="docs/screenshots/demo-trace.png">трейс прогона</a>.</em>
+</p>
+
+Живой деплой работает на split-архитектуре (0 ₽, без карты): FastAPI-оркестратор
+на Render Free (slim-образ `Dockerfile.demo`, ~560 MB, без локального Chromium) +
+headless Chromium как облачный browser-as-a-service (Browserless, `connect_over_cdp`)
++ LLM-вызовы напрямую на провайдера посетителя. Модель угроз, деплой на бесплатный
+хостинг (Render + remote browser) и гарантии по ключу:
 [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md). Обычный self-hosted
 `agentalyze serve` без этого флага демо-эндпоинты **не** открывает.
 
