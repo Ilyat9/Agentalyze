@@ -10,16 +10,25 @@
 ![Task suite](https://img.shields.io/badge/task%20suite-30%20tasks%20·%206%20categories%20·%2012%20verifiers-8a63d2)
 
 <p align="center">
-  <img src="docs/assets/cli-run.gif" width="800"
-       alt="agentalyze run: ReAct-цикл в реальном Chromium и финальный summary с вердиктом программного верификатора">
+  <a href="https://agentalyze-demo.onrender.com/demo">
+    <strong>🌐 Live demo — запусти браузерного агента на своём API-ключе</strong>
+  </a>
+</p>
+<p align="center">
+  <a href="https://agentalyze-demo.onrender.com/demo">
+    <img src="docs/screenshots/demo-light.png" width="800"
+         alt="Публичное демо Agentalyze: вставь свой OpenRouter-ключ, выбери задачу и запусти реального агента в headless Chromium">
+  </a>
+</p>
+<p align="center">
+  <em>Настоящий headless Chromium выполняет задачу на тестовых HTML-фикстурах,
+  решение принимает твоя модель. Ключ обрабатывается один раз и забывается
+  (<a href="docs/DEMO_DEPLOYMENT.md">модель угроз</a>).
+  <a href="docs/screenshots/demo-dark.png">Тёмная тема</a> ·
+  <a href="docs/screenshots/demo-trace.png">трейс прогона</a>.</em>
 </p>
 
-<p align="center">
-  <em>Запуск одной задачи: ReAct-цикл в Chromium → программный верификатор → честный summary.<br>
-  Демки сгенерированы <a href="https://github.com/charmbracelet/vhs">Charm VHS</a>
-  (<a href="docs/tapes/">docs/tapes/</a>, регенерация — <code>scripts/gen_cli_demos.sh</code>);
-  summary в демке — реплей настоящего прогона, не постановка.</em>
-</p>
+---
 
 Eval harness for LLM agents working with tools and a real browser. Вместо
 абстрактных бенчмарков — suite из 30 конкретных агентных веб-задач
@@ -43,6 +52,18 @@ Eval harness for LLM agents working with tools and a real browser. Вместо
 Статус: **проект завершён** — история разработки в
 [`docs/ROADMAP.md`](docs/ROADMAP.md). Известные границы применимости честно
 собраны в [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md).
+
+<p align="center">
+  <img src="docs/assets/cli-run.gif" width="800"
+       alt="agentalyze run: ReAct-цикл в реальном Chromium и финальный summary с вердиктом программного верификатора">
+</p>
+
+<p align="center">
+  <em>Запуск одной задачи из CLI: ReAct-цикл в Chromium → программный верификатор → честный summary.<br>
+  Демки сгенерированы <a href="https://github.com/charmbracelet/vhs">Charm VHS</a>
+  (<a href="docs/tapes/">docs/tapes/</a>, регенерация — <code>scripts/gen_cli_demos.sh</code>);
+  summary в демке — реплей настоящего прогона, не постановка.</em>
+</p>
 
 ## Содержание
 
@@ -547,18 +568,6 @@ docker-compose.service.yml up -d --build`. Kubernetes-манифесты: `deplo
 agentalyze serve --port 8000 --demo-mode   # или AGENTALYZE_DEMO_MODE_ENABLED=1
 # → http://localhost:8000/demo
 ```
-
-<p align="center">
-  <a href="https://agentalyze-demo.onrender.com/demo">
-    <img src="docs/screenshots/demo-light.png" width="800" alt="Публичное демо Agentalyze: форма с ключом, выбор задачи и трейс агента">
-  </a>
-</p>
-<p align="center">
-  <em>Публичное демо: ключевая гарантия — ключ обрабатывается на сервере один раз
-  и забывается. Слева — конфигурация запуска, справа — трейс агента.
-  <a href="docs/screenshots/demo-dark.png">Тёмная тема</a> ·
-  <a href="docs/screenshots/demo-trace.png">трейс прогона</a>.</em>
-</p>
 
 Живой деплой работает на split-архитектуре (0 ₽, без карты): FastAPI-оркестратор
 на Render Free (slim-образ `Dockerfile.demo`, ~560 MB, без локального Chromium) +
