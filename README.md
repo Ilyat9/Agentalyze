@@ -9,7 +9,15 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 ![Task suite](https://img.shields.io/badge/task%20suite-30%20tasks%20·%206%20categories%20·%2012%20verifiers-8a63d2)
 
-![agentalyze CLI в действии](docs/assets/cli-tasks.svg)
+![agentalyze CLI: список задач (анимация)](docs/assets/cli-tasks.gif)
+
+![agentalyze CLI: запуск задачи и финальный summary](docs/assets/cli-run.gif)
+
+_Анимированные демки сгенерированы [Charm VHS](https://github.com/charmbracelet/vhs):
+исходники в [`docs/tapes/`](docs/tapes/), регенерация —
+`scripts/gen_cli_demos.sh`. Демки показывают только реальный вывод:
+`tasks` выполняется по-настоящему (офлайн), а summary в `run` — реплей
+настоящего прогона (локальная Ollama, см. «честность важнее демо»)._
 
 Eval harness for LLM agents working with tools and a real browser. Вместо
 абстрактных бенчмарков — suite из 30 конкретных агентных веб-задач
@@ -539,6 +547,15 @@ pytest                                                            # = первы
 Линтеры: `ruff check .` и `mypy src` (strict, как в CI) — оба должны проходить
 чисто.
 
+Анимированные CLI-демки в README — сгенерированные артефакты, их не правят
+руками. Если поменялось что-то, что видно в выводе CLI (реестр задач,
+формат summary, текст help), перегенерируйте:
+
+```bash
+brew install vhs          # один раз (тянет ffmpeg и ttyd)
+scripts/gen_cli_demos.sh  # пересобирает docs/assets/cli-*.gif из docs/tapes/*.tape
+```
+
 Структура репозитория:
 
 ```
@@ -554,7 +571,8 @@ tests/                   # pytest; маркеры browser / requires_ollama / e2
 fixtures/                # локальные HTML-фикстуры по категориям
 examples/                # end-to-end сценарий (Docker + Ollama) + sample_report.md
                          # с генератором generate_sample_report.py
-docs/assets/             # скриншоты CLI для README
+docs/assets/             # анимированные демки CLI (GIF из VHS) + статический SVG
+docs/tapes/              # исходники VHS-демок; регенерация: scripts/gen_cli_demos.sh
 .github/workflows/       # ci.yml (lint/test/docker); regression-check.yml.example
 .github/ISSUE_TEMPLATE/  # шаблон предложения новой задачи для suite
 CONTRIBUTING.md          # как добавить новую задачу: чек-лист контрибьютора
