@@ -239,8 +239,47 @@ class AnswerTextVerifier:
 #: Generic verifier id used by tasks whose goal is "reach the terminal state".
 SUCCESS_MARKER_ID = "verify-success-marker"
 
+#: Generic verifier id for open-ended goals with no objective DOM criterion
+#: (the demo's visitor-written tasks): trusts the agent's own done() verdict
+#: as stamped into the page DOM by ``runner.tools.do_done``.
+AGENT_VERDICT_ID = "verify-agent-verdict"
+
+
+class AgentVerdictVerifier:
+    """Honest SELF-REPORTED verdict: success iff the agent declared done(true).
+
+    ``do_done`` stamps ``data-agent-verdict="success"|"given-up"`` on the root
+    element, so this stays a DOM-only verifier (protocol-compatible) while
+    explicitly representing a self-report — the reason strings say so. Only
+    meaningful where no objective success marker can exist.
+    """
+
+    async def verify(self, page: Page) -> VerificationResult:
+        verdict = await page.evaluate(
+            "() => document.documentElement.getAttribute('data-agent-verdict')"
+        )
+        if verdict == "success":
+            return VerificationResult(
+                success=True,
+                reason=(
+                    "Agent declared done(success=true) — a self-reported "
+                    "verdict (this open-ended goal has no objective DOM check)."
+                ),
+            )
+        if verdict == "given-up":
+            return VerificationResult(
+                success=False,
+                reason="Agent gave up: declared done(success=false).",
+            )
+        return VerificationResult(
+            success=False,
+            reason="No agent verdict was recorded in the page.",
+        )
+
+
 VERIFIERS: dict[str, Verifier] = {
     SUCCESS_MARKER_ID: SuccessMarkerVerifier(),
+    AGENT_VERDICT_ID: AgentVerdictVerifier(),
     # navigation/simple_link_01: following the Documentation link lands on docs_01.html
     "verify-nav-docs-reached": ElementPresentVerifier(
         "#target-reached", "Agent followed the Documentation link to docs_01.html."

@@ -45,7 +45,14 @@ from pydantic import BaseModel, Field, ValidationError
 
 from agentalyze.config import Settings
 from agentalyze.demo.redaction import redact_text, register_secret, unregister_secret
-from agentalyze.demo.tasks import DEMO_TASK_IDS, get_demo_task
+from agentalyze.demo.tasks import (
+    CUSTOM_INSTRUCTIONS_MAX_CHARS,
+    CUSTOM_TASK_ID,
+    CUSTOM_TASK_MAX_STEPS,
+    build_custom_task,
+    get_allowed_demo_task_ids,
+    get_demo_task,
+)
 from agentalyze.providers.base import (
     Provider,
     ProviderAuthError,
@@ -56,6 +63,7 @@ from agentalyze.providers.base import (
 from agentalyze.providers.openai_compatible import OpenAICompatibleProvider
 from agentalyze.runner import run_task  # module attr is the monkeypatch seam for tests
 from agentalyze.runner.trace import RunTrace
+from agentalyze.tasks.models import Task
 
 logger = structlog.get_logger(__name__)
 
@@ -150,6 +158,12 @@ class DemoRunRequest(BaseModel):
     api_key: str = Field(min_length=1, max_length=512)
     model_name: str = Field(min_length=1, max_length=200)
     task_id: str = Field(min_length=1, max_length=100)
+    #: Visitor-written goal for task_id == "custom". Length-capped: the text
+    #: goes verbatim into the agent prompt; the STEP/TIME budgets stay
+    #: server-fixed (see demo/tasks.build_custom_task).
+    custom_instructions: str | None = Field(
+        default=None, max_length=CUSTOM_INSTRUCTIONS_MAX_CHARS
+    )
 
 
 def _short(text: str) -> str:
@@ -282,6 +296,12 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
 
         return {
             "tasks": demo_tasks_payload(),
+            "custom_task": {
+                "id": CUSTOM_TASK_ID,
+                "max_instructions_chars": CUSTOM_INSTRUCTIONS_MAX_CHARS,
+                "max_steps": CUSTOM_TASK_MAX_STEPS,
+                "verifier": "self-reported (agent's own done verdict)",
+            },
             "rate_limit": settings.demo_rate_limit,
             "default_base_url": DEFAULT_DEMO_BASE_URL,
         }
@@ -354,16 +374,31 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
                 content={"detail": "invalid request", "errors": errors},
             )
 
-        # ---- 3. Allowlist check: NO arbitrary task ids. ---------------------
-        task = get_demo_task(body.task_id)
-        if task is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"unknown demo task {body.task_id!r}; allowed: "
-                    f"{list(DEMO_TASK_IDS)}"
-                ),
-            )
+        # ---- 3. Task selection: allowlist OR the visitor-written custom ----
+        # ----    goal (same server-fixed budgets, different verifier). -----
+        task: Task | None
+        if body.task_id == CUSTOM_TASK_ID:
+            instructions = (body.custom_instructions or "").strip()
+            if not instructions:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "task_id 'custom' requires non-empty "
+                        "'custom_instructions' (the goal text for the agent)"
+                    ),
+                )
+            task = build_custom_task(instructions)
+        else:
+            task = get_demo_task(body.task_id)
+            if task is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"unknown demo task {body.task_id!r}; allowed: "
+                        f"{list(get_allowed_demo_task_ids())} or "
+                        f"{CUSTOM_TASK_ID!r} (with 'custom_instructions')"
+                    ),
+                )
 
         # ---- 4. The key must only travel to HTTPS endpoints. ---------------
         base_url = body.base_url or DEFAULT_DEMO_BASE_URL

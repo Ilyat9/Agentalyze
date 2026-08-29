@@ -442,6 +442,18 @@ async def do_done(
     if confidence is not None:
         extras.append(f"confidence={confidence}")
     suffix = f" ({', '.join(extras)})" if extras else ""
+    # Stamp the agent's OWN verdict into the page DOM so DOM-only verifiers
+    # can tell "declared success" from "gave up" without inspecting agent
+    # steps (the verifier protocol intentionally receives only the page).
+    # Best-effort: the ack result below stays the authoritative record; an
+    # about:blank or closing page must never crash the final step.
+    try:
+        await ctx.page.evaluate(
+            "v => document.documentElement.setAttribute('data-agent-verdict', v)",
+            "success" if success else "given-up",
+        )
+    except PlaywrightError:
+        pass
     return ToolResult(
         success=bool(success),
         output=f"Agent declared the task {verdict}{suffix}.",

@@ -16,6 +16,7 @@ from typing import Any
 
 from agentalyze.tasks.models import Task
 from agentalyze.tasks.registry import TASKS_BY_ID
+from agentalyze.tasks.verifiers import AGENT_VERDICT_ID
 
 #: The explicit allowlist. Adding a task here is a conscious product decision
 #: (cheap + easy + stable fixture), NOT something reachable by passing an id.
@@ -31,6 +32,48 @@ def get_demo_task(task_id: str) -> Task | None:
     if task_id not in DEMO_TASK_IDS:
         return None
     return TASKS_BY_ID.get(task_id)
+
+
+def get_allowed_demo_task_ids() -> tuple[str, ...]:
+    """The allowlist, for error messages (never the full registry)."""
+    return DEMO_TASK_IDS
+
+
+#: Sentinel task_id for a visitor-WRITTEN task (free-form instructions).
+CUSTOM_TASK_ID = "custom"
+#: Hard cap on custom instructions — they go verbatim into the agent prompt.
+CUSTOM_INSTRUCTIONS_MAX_CHARS = 500
+#: The custom task runs in the SAME cheap sandbox as the allowlisted tasks:
+#: the Acme portal start page (its links/forms are the visitor's playground).
+_CUSTOM_SANDBOX_TASK_ID = "nav-simple-link-01"
+#: Custom-task budgets are FIXED BY THE SERVER, not by the visitor: identical
+#: cost ceiling to the most expensive allowlisted demo task.
+CUSTOM_TASK_MAX_STEPS = 8
+CUSTOM_TASK_TIMEOUT_SECONDS = 90
+
+
+def build_custom_task(instructions: str) -> Task:
+    """Build the visitor-written task: their goal, the server's budgets.
+
+    Cost model is identical to the allowlist (≤ 8 steps, ≤ 90 s): the visitor
+    controls only the *goal text*, never the budget, the sandbox page or the
+    verifier. Success is the agent's own done(true) verdict recorded in the
+    page DOM (``verify-agent-verdict``) — an arbitrary goal has no objective
+    DOM marker, and the demo reports this honestly as self-reported.
+    """
+    base = TASKS_BY_ID[_CUSTOM_SANDBOX_TASK_ID]
+    cleaned = " ".join(instructions.split())[:CUSTOM_INSTRUCTIONS_MAX_CHARS]
+    return base.model_copy(
+        update={
+            "id": CUSTOM_TASK_ID,
+            "title": cleaned[:80],
+            "description": cleaned,
+            "verifier_id": AGENT_VERDICT_ID,
+            "max_steps": CUSTOM_TASK_MAX_STEPS,
+            "timeout_seconds": CUSTOM_TASK_TIMEOUT_SECONDS,
+            "tags": ["custom"],
+        }
+    )
 
 
 def demo_tasks_payload() -> list[dict[str, Any]]:
