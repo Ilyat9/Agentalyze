@@ -366,6 +366,7 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
                         content={
                             "status": "timeout",
                             "task_id": demo_task.id,
+                            "timeout_seconds": int(settings.demo_run_timeout_seconds),
                             "message": (
                                 "The run did not finish within the demo time "
                                 f"budget of {int(settings.demo_run_timeout_seconds)} "

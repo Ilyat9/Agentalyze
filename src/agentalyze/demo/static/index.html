@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agentalyze — live demo (bring your own key)</title>
+<title>Agentalyze — живое демо (свой API-ключ)</title>
 <style>
   :root {
     --bg: #0f1420; --panel: #171e2e; --border: #2a3550; --text: #e6ecf7;
@@ -17,6 +17,13 @@
   .wrap { max-width: 760px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
   .sub { color: var(--muted); margin: 0 0 1.4rem; }
+  .langswitch { position: fixed; top: 14px; right: 16px; z-index: 10; }
+  .langswitch button {
+    margin: 0; width: auto; padding: .25rem .6rem; font-size: .8rem; font-weight: 700;
+    background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; display: inline-block; margin-left: 4px;
+  }
+  .langswitch button.active { color: #fff; background: var(--accent); border-color: var(--accent); }
   .notice {
     background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--accent);
     border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; font-size: .95rem;
@@ -39,11 +46,11 @@
   .task input { margin-top: .3rem; }
   .task .desc { color: var(--muted); font-size: .85rem; }
   .consent { display: flex; gap: .6rem; align-items: flex-start; margin-top: 1.1rem; font-size: .9rem; }
-  button {
+  button.run {
     margin-top: 1.2rem; width: 100%; padding: .8rem; font-size: 1rem; font-weight: 700;
     background: var(--accent); color: #fff; border: 0; border-radius: 8px; cursor: pointer;
   }
-  button:disabled { opacity: .5; cursor: wait; }
+  button.run:disabled { opacity: .5; cursor: wait; }
   .result { margin-top: .2rem; }
   .status { font-weight: 700; padding: .5rem .8rem; border-radius: 6px; display: inline-block; margin-bottom: .8rem; }
   .status.ok { background: rgba(53,192,127,.15); color: var(--ok); }
@@ -60,49 +67,51 @@
 </style>
 </head>
 <body>
+<div class="langswitch">
+  <button id="lang_ru">RU</button><button id="lang_en">EN</button>
+</div>
 <div class="wrap">
-  <h1>Agentalyze — live demo <span style="color:var(--muted)">(bring your own key)</span></h1>
-  <p class="sub">A real agent, a real headless Chromium, local benchmark pages — powered by <em>your</em> API key.</p>
+  <h1><span data-i18n="title"></span> <span style="color:var(--muted)" data-i18n="title_suffix"></span></h1>
+  <p class="sub" data-i18n="sub"></p>
 
   <div class="notice">
-    <strong>How your API key is handled — please read before running anything:</strong>
+    <strong data-i18n="notice_title"></strong>
     <ul>
-      <li>The key is sent over <strong>HTTPS</strong> to this server <strong>only when you press “Run”</strong>. It is never stored in your browser (no localStorage, no cookies).</li>
-      <li>Processing happens <strong>server-side</strong>, not in your browser: this server runs a real headless Chromium that drives the task pages, and it calls your provider’s API with your key to make model decisions.</li>
-      <li>The key is used <strong>for this single request only</strong>, kept in memory for the duration of the run, <strong>never logged and never persisted</strong> anywhere. It is discarded when your run finishes.</li>
-      <li>Model calls are billed <strong>to your own account</strong>. Tasks here are deliberately tiny (a few steps) to keep the cost negligible.</li>
-      <li>First run after a quiet period can take up to a minute — the free hosting “sleeps” and wakes up on demand. That’s the platform, not a failure.</li>
+      <li data-i18n="notice_1"></li>
+      <li data-i18n="notice_2"></li>
+      <li data-i18n="notice_3"></li>
+      <li data-i18n="notice_4"></li>
+      <li data-i18n="notice_5"></li>
     </ul>
   </div>
 
   <div class="card">
-    <label for="base_url">Provider endpoint (OpenAI-compatible)</label>
+    <label for="base_url" data-i18n="label_endpoint"></label>
     <select id="base_url">
       <option value="https://openrouter.ai/api/v1" selected>OpenRouter (openrouter.ai)</option>
       <option value="https://api.openai.com/v1">OpenAI (api.openai.com)</option>
-      <option value="custom">Custom base URL…</option>
+      <option value="custom" data-i18n="option_custom"></option>
     </select>
     <input type="url" id="base_url_custom" placeholder="https://…/v1" style="display:none;margin-top:.5rem">
-    <div class="hint">Only cloud OpenAI-compatible endpoints are supported. (Ollama/local models are not offered: an anonymous demo cannot reach a model server on <em>your</em> machine.)</div>
+    <div class="hint" data-i18n="hint_endpoint"></div>
 
-    <label for="model">Model name</label>
+    <label for="model" data-i18n="label_model"></label>
     <input type="text" id="model" value="openai/gpt-4o-mini" autocomplete="off" spellcheck="false">
-    <div class="hint">e.g. <code>openai/gpt-4o-mini</code> on OpenRouter, <code>gpt-4o-mini</code> on OpenAI. Tool-calling support is required.</div>
+    <div class="hint" data-i18n="hint_model"></div>
 
-    <label for="api_key">Your API key</label>
+    <label for="api_key" data-i18n="label_key"></label>
     <input type="password" id="api_key" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false">
-    <div class="hint">Sent only with the “Run” request below; never saved.</div>
+    <div class="hint" data-i18n="hint_key"></div>
 
-    <label>Pick a task</label>
-    <div id="tasks"><span class="hint">Loading tasks…</span></div>
+    <label data-i18n="label_tasks"></label>
+    <div id="tasks"><span class="hint" data-i18n="tasks_loading"></span></div>
 
     <div class="consent">
       <input type="checkbox" id="consent">
-      <span>I understand my API key is sent to this demo server over HTTPS, processed
-      <b>server-side</b> for this one run, and never stored or logged.</span>
+      <span data-i18n="consent_text"></span>
     </div>
 
-    <button id="run" disabled>Run</button>
+    <button class="run" id="run" disabled data-i18n="btn_run"></button>
   </div>
 
   <div class="card result" id="result_card" style="display:none">
@@ -112,11 +121,150 @@
 
 <script>
 "use strict";
+var I18N = {
+  ru: {
+    title: "Agentalyze — живое демо",
+    title_suffix: "(свой API-ключ)",
+    sub: "Настоящий агент, настоящий headless Chromium, локальные тестовые страницы — работает на твоём API-ключе.",
+    notice_title: "Как обрабатывается твой API-ключ — прочитай перед запуском:",
+    notice_1: "Ключ отправляется по <strong>HTTPS</strong> на этот сервер <strong>только когда ты нажмёшь «Запустить»</strong>. В браузере он не сохраняется (ни localStorage, ни cookies).",
+    notice_2: "Обработка происходит <strong>на сервере</strong>, а не в браузере: этот сервер запускает реальный headless Chromium, выполняющий страницы задач, и обращается к API твоего провайдера с твоим ключом для принятия решений моделью.",
+    notice_3: "Ключ используется <strong>только для этого одного запроса</strong>, держится в памяти на время прогона, <strong>никогда не логируется и не сохраняется</strong> нигде. Удаляется сразу после завершения запроса.",
+    notice_4: "Вызовы модели оплачиваются <strong>с твоего аккаунта</strong>. Задачи здесь крошечные (несколько шагов), так что стоимость ничтожна.",
+    notice_5: "Первый запуск после простоя может занять до минуты — хостинг «просыпается» по запросу. Это свойство платформы, а не сбой.",
+    label_endpoint: "Эндпоинт провайдера (OpenAI-совместимый)",
+    option_custom: "Свой base URL…",
+    hint_endpoint: "Поддерживаются только облачные OpenAI-совместимые эндпоинты. (Ollama и локальные модели не предлагаются: анонимное демо не может достучаться до сервера моделей на твоей машине.)",
+    label_model: "Название модели",
+    hint_model: "Например <code>openai/gpt-4o-mini</code> на OpenRouter, <code>gpt-4o-mini</code> на OpenAI. Нужна поддержка tool-calling.",
+    label_key: "Твой API-ключ",
+    hint_key: "Отправится только вместе с нажатием «Запустить» ниже; нигде не сохраняется.",
+    label_tasks: "Выбери задачу",
+    tasks_loading: "Загружаю задачи…",
+    tasks_error: "Не удалось загрузить список задач. Демо-режим включён на этом сервере?",
+    steps_suffix: "шагов максимум",
+    consent_text: "Я понимаю, что мой API-ключ будет отправлен на сервер демо по HTTPS, обработан <b>на сервере</b> для этого одного прогона и не будет сохранён или записан в логи.",
+    btn_run: "Запустить",
+    running: "Выполняю… настоящий браузерный агент работает; обычно 15–90 секунд (первый запуск после простоя — до минуты).",
+    st_completed: "Успех",
+    st_failed: "Не решено",
+    st_timeout: "Не успело за отведённое время",
+    st_error: "Ошибка",
+    outcome_prefix: " — исход: ",
+    stats_steps: "Шаги:",
+    stats_time: "Время:",
+    stats_tokens: "Токены:",
+    stats_tokens_fmt: "{i} на вход / {o} на выход",
+    stats_cost: "Стоимость:",
+    verifier: "Верификатор:",
+    th_num: "#", th_action: "Действие", th_obs: "Наблюдение",
+    network_err: "Сетевая ошибка: ",
+    err_auth: "Провайдер отклонил API-ключ (401/403). Проверь, что ключ действителен и у него есть доступ к выбранной модели.",
+    err_timeout: "Провайдер не ответил вовремя. Попробуй ещё раз или выбери более быструю модель.",
+    err_connection: "Не удалось подключиться к эндпоинту провайдера. Проверь base URL (должен быть публично доступен по HTTPS).",
+    err_provider: "Провайдер вернул ошибку во время прогона.",
+    timeout_msg: "Прогон не уложился в отведённые {n} секунд и был остановлен. Это честное ограничение публичного демо, а не обязательно провал модели.",
+    outcomes: {
+      success: "успех",
+      failure_verifier: "агент объявил о завершении, но проверка не согласна",
+      failure_max_steps: "бюджет шагов исчерпан",
+      failure_timeout: "не уложился в таймаут",
+      failure_provider_error: "ошибка провайдера",
+      failure_tool_error: "ошибка браузерного инструмента",
+      failure_crash: "внутренний сбой"
+    },
+    tasks: {
+      "nav-simple-link-01": { t: "Перейти по ссылке в документацию", d: "Открой стартовую страницу портала Acme. Найди ссылку, ведущую в раздел Documentation, и перейди по ней." },
+      "form-fill-basic-01": { t: "Заполнить контактную форму", d: "Заполни форму обратной связи поддержки: имя «Ivan Petrov», email «ivan@example.com», сообщение «My order has not arrived». Отправь её." },
+      "extract-price-01": { t: "Найти цену товара", d: "Найди цену «Nordic Chair» на странице. Запиши ответ в поле Answer в долларах числом (например 12.34) вместе с уверенностью от 0 до 1 и отправь." }
+    }
+  },
+  en: {
+    title: "Agentalyze — live demo",
+    title_suffix: "(bring your own key)",
+    sub: "A real agent, a real headless Chromium, local benchmark pages — powered by your API key.",
+    notice_title: "How your API key is handled — please read before running anything:",
+    notice_1: "The key is sent over <strong>HTTPS</strong> to this server <strong>only when you press “Run”</strong>. It is never stored in your browser (no localStorage, no cookies).",
+    notice_2: "Processing happens <strong>server-side</strong>, not in your browser: this server runs a real headless Chromium that drives the task pages, and it calls your provider’s API with your key to make model decisions.",
+    notice_3: "The key is used <strong>for this single request only</strong>, kept in memory for the duration of the run, <strong>never logged and never persisted</strong> anywhere. It is discarded when your run finishes.",
+    notice_4: "Model calls are billed <strong>to your own account</strong>. Tasks here are deliberately tiny (a few steps) to keep the cost negligible.",
+    notice_5: "First run after a quiet period can take up to a minute — the free hosting “sleeps” and wakes up on demand. That’s the platform, not a failure.",
+    label_endpoint: "Provider endpoint (OpenAI-compatible)",
+    option_custom: "Custom base URL…",
+    hint_endpoint: "Only cloud OpenAI-compatible endpoints are supported. (Ollama/local models are not offered: an anonymous demo cannot reach a model server on your machine.)",
+    label_model: "Model name",
+    hint_model: "e.g. <code>openai/gpt-4o-mini</code> on OpenRouter, <code>gpt-4o-mini</code> on OpenAI. Tool-calling support is required.",
+    label_key: "Your API key",
+    hint_key: "Sent only with the “Run” request below; never saved.",
+    label_tasks: "Pick a task",
+    tasks_loading: "Loading tasks…",
+    tasks_error: "Could not load the task list. Is the demo enabled on this server?",
+    steps_suffix: "steps max",
+    consent_text: "I understand my API key is sent to this demo server over HTTPS, processed <b>server-side</b> for this one run, and never stored or logged.",
+    btn_run: "Run",
+    running: "Running… a real browser agent is working; this usually takes 15–90 seconds (the first run after idle can take up to a minute).",
+    st_completed: "Success",
+    st_failed: "Not solved",
+    st_timeout: "Timed out",
+    st_error: "Error",
+    outcome_prefix: " — outcome: ",
+    stats_steps: "Steps:",
+    stats_time: "Wall time:",
+    stats_tokens: "Tokens:",
+    stats_tokens_fmt: "{i} in / {o} out",
+    stats_cost: "Cost:",
+    verifier: "Verifier:",
+    th_num: "#", th_action: "Action", th_obs: "Observation",
+    network_err: "Network error: ",
+    err_auth: "The provider rejected the API key (401/403). Check that the key is valid and allowed to use the selected model.",
+    err_timeout: "The provider did not answer in time. Try again or pick a faster model.",
+    err_connection: "Could not reach the provider endpoint. Check the base URL (it must be publicly reachable over HTTPS).",
+    err_provider: "The provider returned an error during the run.",
+    timeout_msg: "The run did not finish within the demo time budget of {n} seconds and was stopped. This is an honest limit of the public demo, not necessarily a model failure.",
+    outcomes: {
+      success: "success",
+      failure_verifier: "agent declared done, verifier disagreed",
+      failure_max_steps: "step budget exhausted",
+      failure_timeout: "timed out",
+      failure_provider_error: "provider error",
+      failure_tool_error: "browser tool error",
+      failure_crash: "internal crash"
+    },
+    tasks: {}
+  }
+};
 var consent = document.getElementById("consent");
 var runBtn = document.getElementById("run");
 var tasksBox = document.getElementById("tasks");
 var resultCard = document.getElementById("result_card");
 var resultBox = document.getElementById("result");
+
+var lang = "ru";
+try { lang = localStorage.getItem("demo_lang") === "en" ? "en" : "ru"; } catch (e) {}
+var tasksData = [];
+var lastData = null;
+
+function t(key) { return I18N[lang][key]; }
+function fmt(str, vars) {
+  return str.replace(/\{(\w+)\}/g, function (_, k) { return vars[k]; });
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.getElementById("lang_ru").className = lang === "ru" ? "active" : "";
+  document.getElementById("lang_en").className = lang === "en" ? "active" : "";
+  var els = document.querySelectorAll("[data-i18n]");
+  for (var i = 0; i < els.length; i++) {
+    var key = els[i].getAttribute("data-i18n");
+    if (t(key) != null) { els[i].innerHTML = t(key); }
+  }
+  document.getElementById("api_key").placeholder = "sk-or-v1-…";
+  renderTasks();
+  if (lastData) { render(lastData); }
+}
+
+document.getElementById("lang_ru").addEventListener("click", function () { lang = "ru"; try { localStorage.setItem("demo_lang", "ru"); } catch (e) {} applyLang(); });
+document.getElementById("lang_en").addEventListener("click", function () { lang = "en"; try { localStorage.setItem("demo_lang", "en"); } catch (e) {} applyLang(); });
 
 function refresh() { runBtn.disabled = !(consent.checked && selectedTask()); }
 consent.addEventListener("change", refresh);
@@ -132,25 +280,33 @@ function selectedTask() {
   return r ? r.value : null;
 }
 
-fetch("/demo/tasks").then(function (r) { return r.json(); }).then(function (data) {
+function renderTasks() {
   tasksBox.innerHTML = "";
-  (data.tasks || []).forEach(function (t, i) {
+  tasksData.forEach(function (task, i) {
+    var loc = (I18N[lang].tasks || {})[task.id];
+    var title = loc ? loc.t : task.title;
+    var desc = loc ? loc.d : task.description;
     var row = document.createElement("div");
     row.className = "task";
     var input = document.createElement("input");
-    input.type = "radio"; input.name = "task"; input.value = t.id; input.id = "t_" + t.id;
+    input.type = "radio"; input.name = "task"; input.value = task.id; input.id = "t_" + task.id;
     input.addEventListener("change", refresh);
     var label = document.createElement("label");
-    label.setAttribute("for", "t_" + t.id);
+    label.setAttribute("for", "t_" + task.id);
     label.style.margin = "0"; label.style.fontWeight = "500";
-    label.innerHTML = "<div>" + escapeHtml(t.title) +
-      ' <span class="hint">(' + t.max_steps + " steps max)</span></div>" +
-      '<div class="desc">' + escapeHtml(t.description) + "</div>";
+    label.innerHTML = "<div>" + escapeHtml(title) +
+      ' <span class="hint">(' + task.max_steps + " " + t("steps_suffix") + ")</span></div>" +
+      '<div class="desc">' + escapeHtml(desc) + "</div>";
     row.appendChild(input); row.appendChild(label);
     tasksBox.appendChild(row);
   });
+}
+
+fetch("/demo/tasks").then(function (r) { return r.json(); }).then(function (data) {
+  tasksData = data.tasks || [];
+  renderTasks();
 }).catch(function () {
-  tasksBox.innerHTML = '<span class="err">Could not load the task list. Is the demo enabled on this server?</span>';
+  tasksBox.innerHTML = '<span class="err">' + escapeHtml(t("tasks_error")) + "</span>";
 });
 
 function escapeHtml(s) {
@@ -168,8 +324,7 @@ runBtn.addEventListener("click", function () {
 
   runBtn.disabled = true;
   resultCard.style.display = "block";
-  resultBox.innerHTML = '<span class="status wait">Running… a real browser agent is working; ' +
-    "this usually takes 15–90 seconds (the first run after idle can take up to a minute).</span>";
+  resultBox.innerHTML = '<span class="status wait">' + escapeHtml(t("running")) + "</span>";
   resultBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   fetch("/demo/run", {
@@ -183,11 +338,12 @@ runBtn.addEventListener("click", function () {
       task_id: task
     })
   }).then(function (r) {
-    return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    return r.json().then(function (data) { return { data: data }; });
   }).then(function (res) {
+    lastData = res.data;
     render(res.data);
   }).catch(function (err) {
-    resultBox.innerHTML = '<span class="err">Network error: ' + escapeHtml(String(err)) + "</span>";
+    resultBox.innerHTML = '<span class="err">' + escapeHtml(t("network_err") + String(err)) + "</span>";
   }).finally(function () {
     runBtn.disabled = !consent.checked;
     document.getElementById("api_key").value = "";
@@ -197,19 +353,23 @@ runBtn.addEventListener("click", function () {
 function render(data) {
   if (data.status === "completed" || data.status === "failed") {
     var good = data.status === "completed";
+    var outcomeText = (I18N[lang].outcomes || {})[data.outcome] || data.outcome;
     var html = '<span class="status ' + (good ? "ok" : "bad") + '">' +
-      (good ? "Success" : "Not solved") + " — outcome: " + escapeHtml(data.outcome) + "</span>";
+      escapeHtml(good ? t("st_completed") : t("st_failed")) +
+      escapeHtml(t("outcome_prefix") + outcomeText) + "</span>";
     html += '<div class="stats">' +
-      "<span>Steps: <b>" + data.step_count + "</b></span>" +
-      "<span>Wall time: <b>" + data.wall_clock_seconds + "s</b></span>" +
-      "<span>Tokens: <b>" + data.total_prompt_tokens + " in / " + data.total_completion_tokens + " out</b></span>" +
-      (data.total_cost_usd != null ? "<span>Cost: <b>$" + data.total_cost_usd.toFixed(4) + "</b></span>" : "") +
+      "<span>" + escapeHtml(t("stats_steps")) + " <b>" + data.step_count + "</b></span>" +
+      "<span>" + escapeHtml(t("stats_time")) + " <b>" + data.wall_clock_seconds + "s</b></span>" +
+      "<span>" + escapeHtml(t("stats_tokens")) + " <b>" +
+        escapeHtml(t("stats_tokens_fmt").replace("{i}", data.total_prompt_tokens).replace("{o}", data.total_completion_tokens)) +
+        "</b></span>" +
+      (data.total_cost_usd != null ? "<span>" + escapeHtml(t("stats_cost")) + " <b>$" + data.total_cost_usd.toFixed(4) + "</b></span>" : "") +
       "</div>";
     if (data.verifier_reason) {
-      html += '<div class="hint">Verifier: ' + escapeHtml(data.verifier_reason) + "</div>";
+      html += '<div class="hint">' + escapeHtml(t("verifier") + " " + data.verifier_reason) + "</div>";
     }
     if ((data.steps || []).length) {
-      html += "<table><tr><th>#</th><th>Action</th><th>Observation</th></tr>";
+      html += "<table><tr><th>" + t("th_num") + "</th><th>" + t("th_action") + "</th><th>" + t("th_obs") + "</th></tr>";
       data.steps.forEach(function (s) {
         html += "<tr><td>" + s.step + "</td><td>" + escapeHtml(s.action) +
           (s.ok === false ? ' <span class="err">✗</span>' : "") +
@@ -219,11 +379,27 @@ function render(data) {
     }
     resultBox.innerHTML = html;
   } else {
-    var msg = data.message || data.detail || JSON.stringify(data);
-    resultBox.innerHTML = '<span class="status bad">' + escapeHtml(data.status || "error") + "</span>" +
+    var msg;
+    if (data.status === "timeout") {
+      msg = t("timeout_msg").replace("{n}", data.timeout_seconds || "90");
+    } else if (data.error_kind) {
+      var kindMap = {
+        provider_auth: "err_auth",
+        provider_timeout: "err_timeout",
+        provider_connection: "err_connection",
+        provider_error: "err_provider"
+      };
+      msg = kindMap[data.error_kind] ? t(kindMap[data.error_kind]) : (data.message || "");
+    } else {
+      msg = data.message || data.detail || JSON.stringify(data);
+    }
+    var statusKey = { timeout: "st_timeout", error: "st_error" }[data.status] || "st_error";
+    resultBox.innerHTML = '<span class="status bad">' + escapeHtml(statusKey ? t(statusKey) : data.status) + "</span>" +
       '<div class="err">' + escapeHtml(msg) + "</div>";
   }
 }
+
+applyLang();
 </script>
 </body>
 </html>
