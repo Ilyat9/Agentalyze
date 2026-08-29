@@ -65,7 +65,15 @@
 
   /* ---------- layout ---------- */
   .wrap{ max-width: 1040px; margin: 0 auto; padding: 56px 32px 80px; }
-  .hero{ max-width: 640px; margin-bottom: 40px; }
+  .hero{ max-width: 640px; margin-bottom: 56px; }
+  .status-line{
+    display:flex; align-items:center; gap: 9px; margin-top: 20px;
+    font-family: var(--mono); font-size: 12px; color: var(--ink-faint);
+  }
+  .status-line .dot{ width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex: none; }
+  .status-line.up{ color: var(--ink-soft); }
+  .status-line.up .dot{ background: var(--moss); }
+  .status-line.warn .dot{ background: #b08a3e; }
   .kicker{
     font-family: var(--mono); font-size: 11.5px; color: var(--moss);
     letter-spacing: 0.03em; margin-bottom: 18px; text-transform: uppercase;
@@ -80,13 +88,13 @@
   /* ---------- trust panel ---------- */
   .trust{
     background: var(--moss-bg); border: 1px solid var(--line); border-left: 3px solid var(--moss);
-    padding: 34px 36px; margin-bottom: 52px;
+    padding: 30px 36px; margin-bottom: 48px;
   }
   .trust-head{
     font-family: var(--mono); font-size: 12px; font-weight: 500; text-transform: uppercase;
-    letter-spacing: 0.04em; color: var(--moss); margin-bottom: 22px;
+    letter-spacing: 0.04em; color: var(--moss); margin-bottom: 20px;
   }
-  .trust-list{ list-style:none; display:grid; grid-template-columns: 1fr 1fr; gap: 22px 48px; }
+  .trust-list{ list-style:none; display:grid; grid-template-columns: 1fr 1fr; gap: 20px 48px; }
   .trust-list li{
     font-size: 14px; color: var(--ink-soft); line-height: 1.6; padding-left: 18px;
     border-left: 1px solid var(--line);
@@ -192,6 +200,7 @@
     color: var(--ink-faint); display:flex; align-items:center; justify-content:center;
     height: 100%; text-align:center; font-family: var(--sans); font-size: 13px; line-height: 1.6;
   }
+  .fineprint{ margin-top: 22px; font-size: 12px; color: var(--ink-faint); line-height: 1.7; }
   .foot-note{ margin-top: 26px; font-size: 12.5px; color: var(--ink-faint); }
   .foot-note a{ color: var(--moss); }
 </style>
@@ -220,6 +229,11 @@
       <div class="kicker" data-i18n="kicker"></div>
       <h1 data-i18n="h1"></h1>
       <p class="lede" data-i18n="lede"></p>
+      <div class="status-line" id="live_box">
+        <span class="dot"></span>
+        <span id="live_status" data-i18n="status_checking"></span>
+        <span id="rate_note"></span>
+      </div>
     </div>
 
     <div class="trust">
@@ -229,8 +243,6 @@
         <li data-i18n="notice_2"></li>
         <li data-i18n="notice_3"></li>
         <li data-i18n="notice_4"></li>
-        <li data-i18n="notice_5"></li>
-        <li data-i18n="notice_6"></li>
       </ul>
     </div>
 
@@ -298,6 +310,11 @@
       </div>
     </div>
 
+    <p class="fineprint">
+      <span data-i18n="fineprint_cold"></span><br>
+      <span data-i18n="fineprint_ollama"></span>
+    </p>
+
     <p class="foot-note">
       <span data-i18n="foot"></span> ·
       <a href="https://github.com/Ilyat9/Agentalyze" target="_blank" rel="noopener">GitHub</a>
@@ -320,6 +337,12 @@ var I18N = {
     notice_2: "Обработка происходит <strong>на сервере</strong>: он поднимает headless Chromium и обращается к API твоего провайдера с твоим ключом.",
     notice_3: "Ключ живёт в памяти только на время прогона, <strong>не логируется и не сохраняется</strong>, удаляется сразу после ответа.",
     notice_4: "Вызовы модели оплачиваются с твоего аккаунта. Задачи ограничены <strong>8 шагами</strong>, стоимость доли цента.",
+    status_checking: "проверяю сервер…",
+    status_up: "сервер активен — готов к запускам",
+    status_waking: "сервер просыпается (бесплатный хостинг) — это может занять до минуты",
+    rate_limit_label: "лимит:",
+    fineprint_cold: "Первый запуск после простоя может занять до минуты — бесплатный хостинг «просыпается» по запросу.",
+    fineprint_ollama: "Работают только облачные OpenAI-совместимые эндпоинты; Ollama недоступна анонимному серверу.",
     notice_5: "Первый запуск после простоя может занять до минуты, потому что бесплатный хостинг «просыпается» по запросу.",
     notice_6: "Работают только облачные OpenAI-совместимые эндпоинты. <code>Ollama</code> недоступна анонимному серверу.",
     label_endpoint: "Эндпоинт провайдера",
@@ -390,6 +413,12 @@ var I18N = {
     notice_2: "Processing happens <strong>server-side</strong>: the server runs headless Chromium and calls your provider’s API with your key.",
     notice_3: "The key lives in memory for the run only, is <strong>never logged or persisted</strong>, and is discarded with the response.",
     notice_4: "Model calls are billed to your account. Tasks are capped at <strong>8 steps</strong> — a fraction of a cent.",
+    status_checking: "checking the server…",
+    status_up: "server is up — ready to run",
+    status_waking: "server is waking up (free hosting) — this can take up to a minute",
+    rate_limit_label: "rate limit:",
+    fineprint_cold: "The first run after a quiet period can take up to a minute — free hosting wakes up on demand.",
+    fineprint_ollama: "Cloud OpenAI-compatible endpoints only; Ollama is unreachable from an anonymous server.",
     notice_5: "The first run after a quiet period can take up to a minute — free hosting wakes up on demand.",
     notice_6: "Cloud OpenAI-compatible endpoints only. <code>Ollama</code> is unreachable from an anonymous server.",
     label_endpoint: "Provider endpoint",
@@ -550,9 +579,35 @@ function renderTasks(){
 fetch("/demo/tasks").then(function (r) { return r.json(); }).then(function (data) {
   tasksData = data.tasks || [];
   renderTasks();
+  if (data.rate_limit) {
+    document.getElementById("rate_note").textContent = " · " + t("rate_limit_label") + " " + data.rate_limit;
+  }
 }).catch(function () {
   document.getElementById("task_hint").textContent = t("tasks_error") || "";
 });
+
+/* ---------- honest live status (real /livez, no fake counters) ---------- */
+function setLive(mode, key) {
+  var box = document.getElementById("live_box");
+  box.className = "status-line " + mode;
+  document.getElementById("live_status").textContent = t(key);
+}
+function checkLive() {
+  setLive("", "status_checking");
+  fetch("/livez", { cache: "no-store" }).then(function (r) {
+    if (r.ok) { setLive("up", "status_up"); }
+    else { wakingLive(); }
+  }).catch(wakingLive);
+}
+function wakingLive() {
+  setLive("warn", "status_waking");
+  setTimeout(function () {
+    fetch("/livez", { cache: "no-store" }).then(function (r) {
+      if (r.ok) { setLive("up", "status_up"); }
+    }).catch(function () {});
+  }, 5000);
+}
+checkLive();
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
