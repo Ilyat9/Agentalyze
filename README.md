@@ -9,15 +9,17 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 ![Task suite](https://img.shields.io/badge/task%20suite-30%20tasks%20·%206%20categories%20·%2012%20verifiers-8a63d2)
 
-![agentalyze CLI: список задач (анимация)](docs/assets/cli-tasks.gif)
+<p align="center">
+  <img src="docs/assets/cli-run.gif" width="800"
+       alt="agentalyze run: ReAct-цикл в реальном Chromium и финальный summary с вердиктом программного верификатора">
+</p>
 
-![agentalyze CLI: запуск задачи и финальный summary](docs/assets/cli-run.gif)
-
-_Анимированные демки сгенерированы [Charm VHS](https://github.com/charmbracelet/vhs):
-исходники в [`docs/tapes/`](docs/tapes/), регенерация —
-`scripts/gen_cli_demos.sh`. Демки показывают только реальный вывод:
-`tasks` выполняется по-настоящему (офлайн), а summary в `run` — реплей
-настоящего прогона (локальная Ollama, см. «честность важнее демо»)._
+<p align="center">
+  <em>Запуск одной задачи: ReAct-цикл в Chromium → программный верификатор → честный summary.<br>
+  Демки сгенерированы <a href="https://github.com/charmbracelet/vhs">Charm VHS</a>
+  (<a href="docs/tapes/">docs/tapes/</a>, регенерация — <code>scripts/gen_cli_demos.sh</code>);
+  summary в демке — реплей настоящего прогона, не постановка.</em>
+</p>
 
 Eval harness for LLM agents working with tools and a real browser. Вместо
 абстрактных бенчмарков — suite из 30 конкретных агентных веб-задач
@@ -133,6 +135,11 @@ flowchart TB
 agentalyze tasks                                # все задачи
 agentalyze tasks --tag looping                  # только задачи, «ловящие» зацикливание
 ```
+
+<p align="center">
+  <img src="docs/assets/cli-tasks.gif" width="800"
+       alt="agentalyze tasks: реестр 30 задач и фильтр по failure-тегу">
+</p>
 
 Каждая задача несёт поле `expected_failure_modes` (теги из failure-таксономии)
 — структурированный аналог её комментария «Reveals: …»; флаг `--tag`
