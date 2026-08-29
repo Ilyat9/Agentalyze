@@ -275,7 +275,10 @@ async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTra
     try:
         pw = await async_playwright().start()
         try:
-            browser = await pw.chromium.launch(headless=True)
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=settings.chromium_args() or None,
+            )
             try:
                 context = await browser.new_context(viewport={"width": 1280, "height": 800})
                 try:

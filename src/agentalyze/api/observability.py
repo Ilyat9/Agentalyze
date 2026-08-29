@@ -15,6 +15,8 @@ import sys
 
 import structlog
 
+from agentalyze.demo.redaction import redaction_processor
+
 
 def configure_logging(level: str = "INFO", json_format: bool = False) -> None:
     """Idempotent global logging configuration for both CLI and service."""
@@ -25,6 +27,12 @@ def configure_logging(level: str = "INFO", json_format: bool = False) -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
+        # Placed AFTER format_exc_info so it also scrubs the fully rendered
+        # traceback string. With an empty secret registry this is a no-op, so
+        # it is safe (and deliberate) to have it in the GLOBAL pipeline: demo
+        # secrets must be masked in EVERY log line, not only in demo-emitted
+        # ones (uvicorn tracebacks, third-party warnings, etc.).
+        redaction_processor,
     ]
 
     renderer: structlog.typing.Processor = (

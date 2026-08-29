@@ -30,5 +30,8 @@ providers.yaml
 # OS noise
 .DS_Store
 
+# Service-mode local SQLite (created by bare `agentalyze serve` in cwd)
+agentalyze.db
+
 # Codegraph index
 .codegraph/

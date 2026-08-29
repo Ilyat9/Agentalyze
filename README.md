@@ -531,6 +531,23 @@ curl -X POST http://localhost:8000/runs \
 Локальный сервисный стенд с PostgreSQL: `docker compose -f
 docker-compose.service.yml up -d --build`. Kubernetes-манифесты: `deploy/k8s/`.
 
+### Публичное демо (BYOK, опционально)
+
+Отдельная, выключенная по умолчанию поверхность для публичного
+демо-сайта: посетитель вставляет **свой** OpenRouter/OpenAI ключ, выбирает
+одну из трёх коротких задач и смотрит честный прогон в реальном Chromium
+(ключ живёт в памяти одного запроса, не логируется, не сохраняется;
+rate-limit по IP; allowlist из 3 `easy`-задач).
+
+```bash
+agentalyze serve --port 8000 --demo-mode   # или AGENTALYZE_DEMO_MODE_ENABLED=1
+# → http://localhost:8000/demo
+```
+
+Модель угроз, деплой на бесплатный хостинг (HF Spaces) и гарантии по ключу:
+[`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md). Обычный self-hosted
+`agentalyze serve` без этого флага демо-эндпоинты **не** открывает.
+
 ## Development
 
 ```bash

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentalyze — live demo (bring your own key)</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --border: #2a3550; --text: #e6ecf7;
+    --muted: #93a1bd; --accent: #4f8cff; --ok: #35c07f; --bad: #e05c6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  .sub { color: var(--muted); margin: 0 0 1.4rem; }
+  .notice {
+    background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1.4rem; font-size: .95rem;
+  }
+  .notice ul { margin: .5rem 0 0; padding-left: 1.2rem; }
+  .notice li { margin: .25rem 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.2rem 1.3rem; margin-bottom: 1.2rem;
+  }
+  label { display: block; font-weight: 600; margin: .9rem 0 .3rem; }
+  label:first-child { margin-top: 0; }
+  input[type="text"], input[type="password"], input[type="url"], select {
+    width: 100%; padding: .55rem .7rem; border-radius: 6px; border: 1px solid var(--border);
+    background: #0d1220; color: var(--text); font-size: .95rem;
+  }
+  input[type="password"] { letter-spacing: 2px; }
+  .hint { color: var(--muted); font-size: .82rem; margin-top: .25rem; }
+  .task { display: flex; gap: .6rem; align-items: flex-start; margin: .6rem 0; }
+  .task input { margin-top: .3rem; }
+  .task .desc { color: var(--muted); font-size: .85rem; }
+  .consent { display: flex; gap: .6rem; align-items: flex-start; margin-top: 1.1rem; font-size: .9rem; }
+  button {
+    margin-top: 1.2rem; width: 100%; padding: .8rem; font-size: 1rem; font-weight: 700;
+    background: var(--accent); color: #fff; border: 0; border-radius: 8px; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: wait; }
+  .result { margin-top: .2rem; }
+  .status { font-weight: 700; padding: .5rem .8rem; border-radius: 6px; display: inline-block; margin-bottom: .8rem; }
+  .status.ok { background: rgba(53,192,127,.15); color: var(--ok); }
+  .status.bad { background: rgba(224,92,108,.15); color: var(--bad); }
+  .status.wait { background: rgba(79,140,255,.15); color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .6rem; }
+  th, td { text-align: left; padding: .45rem .55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .obs { color: var(--muted); }
+  .stats { display: flex; flex-wrap: wrap; gap: 1rem 1.6rem; color: var(--muted); font-size: .88rem; margin-bottom: .4rem; }
+  .stats b { color: var(--text); }
+  .err { color: var(--bad); white-space: pre-wrap; }
+  code { background: #0d1220; padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Agentalyze — live demo <span style="color:var(--muted)">(bring your own key)</span></h1>
+  <p class="sub">A real agent, a real headless Chromium, local benchmark pages — powered by <em>your</em> API key.</p>
+
+  <div class="notice">
+    <strong>How your API key is handled — please read before running anything:</strong>
+    <ul>
+      <li>The key is sent over <strong>HTTPS</strong> to this server <strong>only when you press “Run”</strong>. It is never stored in your browser (no localStorage, no cookies).</li>
+      <li>Processing happens <strong>server-side</strong>, not in your browser: this server runs a real headless Chromium that drives the task pages, and it calls your provider’s API with your key to make model decisions.</li>
+      <li>The key is used <strong>for this single request only</strong>, kept in memory for the duration of the run, <strong>never logged and never persisted</strong> anywhere. It is discarded when your run finishes.</li>
+      <li>Model calls are billed <strong>to your own account</strong>. Tasks here are deliberately tiny (a few steps) to keep the cost negligible.</li>
+      <li>First run after a quiet period can take up to a minute — the free hosting “sleeps” and wakes up on demand. That’s the platform, not a failure.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <label for="base_url">Provider endpoint (OpenAI-compatible)</label>
+    <select id="base_url">
+      <option value="https://openrouter.ai/api/v1" selected>OpenRouter (openrouter.ai)</option>
+      <option value="https://api.openai.com/v1">OpenAI (api.openai.com)</option>
+      <option value="custom">Custom base URL…</option>
+    </select>
+    <input type="url" id="base_url_custom" placeholder="https://…/v1" style="display:none;margin-top:.5rem">
+    <div class="hint">Only cloud OpenAI-compatible endpoints are supported. (Ollama/local models are not offered: an anonymous demo cannot reach a model server on <em>your</em> machine.)</div>
+
+    <label for="model">Model name</label>
+    <input type="text" id="model" value="openai/gpt-4o-mini" autocomplete="off" spellcheck="false">
+    <div class="hint">e.g. <code>openai/gpt-4o-mini</code> on OpenRouter, <code>gpt-4o-mini</code> on OpenAI. Tool-calling support is required.</div>
+
+    <label for="api_key">Your API key</label>
+    <input type="password" id="api_key" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false">
+    <div class="hint">Sent only with the “Run” request below; never saved.</div>
+
+    <label>Pick a task</label>
+    <div id="tasks"><span class="hint">Loading tasks…</span></div>
+
+    <div class="consent">
+      <input type="checkbox" id="consent">
+      <span>I understand my API key is sent to this demo server over HTTPS, processed
+      <b>server-side</b> for this one run, and never stored or logged.</span>
+    </div>
+
+    <button id="run" disabled>Run</button>
+  </div>
+
+  <div class="card result" id="result_card" style="display:none">
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var consent = document.getElementById("consent");
+var runBtn = document.getElementById("run");
+var tasksBox = document.getElementById("tasks");
+var resultCard = document.getElementById("result_card");
+var resultBox = document.getElementById("result");
+
+function refresh() { runBtn.disabled = !(consent.checked && selectedTask()); }
+consent.addEventListener("change", refresh);
+
+var sel = document.getElementById("base_url");
+var custom = document.getElementById("base_url_custom");
+sel.addEventListener("change", function () {
+  custom.style.display = sel.value === "custom" ? "block" : "none";
+});
+
+function selectedTask() {
+  var r = document.querySelector('input[name="task"]:checked');
+  return r ? r.value : null;
+}
+
+fetch("/demo/tasks").then(function (r) { return r.json(); }).then(function (data) {
+  tasksBox.innerHTML = "";
+  (data.tasks || []).forEach(function (t, i) {
+    var row = document.createElement("div");
+    row.className = "task";
+    var input = document.createElement("input");
+    input.type = "radio"; input.name = "task"; input.value = t.id; input.id = "t_" + t.id;
+    input.addEventListener("change", refresh);
+    var label = document.createElement("label");
+    label.setAttribute("for", "t_" + t.id);
+    label.style.margin = "0"; label.style.fontWeight = "500";
+    label.innerHTML = "<div>" + escapeHtml(t.title) +
+      ' <span class="hint">(' + t.max_steps + " steps max)</span></div>" +
+      '<div class="desc">' + escapeHtml(t.description) + "</div>";
+    row.appendChild(input); row.appendChild(label);
+    tasksBox.appendChild(row);
+  });
+}).catch(function () {
+  tasksBox.innerHTML = '<span class="err">Could not load the task list. Is the demo enabled on this server?</span>';
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+runBtn.addEventListener("click", function () {
+  var key = document.getElementById("api_key").value.trim();
+  var model = document.getElementById("model").value.trim();
+  var base = sel.value === "custom" ? custom.value.trim() : sel.value;
+  var task = selectedTask();
+  if (!key || !model || !task) { return; }
+
+  runBtn.disabled = true;
+  resultCard.style.display = "block";
+  resultBox.innerHTML = '<span class="status wait">Running… a real browser agent is working; ' +
+    "this usually takes 15–90 seconds (the first run after idle can take up to a minute).</span>";
+  resultBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  fetch("/demo/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider_kind: "openai_compatible",
+      base_url: base,
+      api_key: key,
+      model_name: model,
+      task_id: task
+    })
+  }).then(function (r) {
+    return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+  }).then(function (res) {
+    render(res.data);
+  }).catch(function (err) {
+    resultBox.innerHTML = '<span class="err">Network error: ' + escapeHtml(String(err)) + "</span>";
+  }).finally(function () {
+    runBtn.disabled = !consent.checked;
+    document.getElementById("api_key").value = "";
+  });
+});
+
+function render(data) {
+  if (data.status === "completed" || data.status === "failed") {
+    var good = data.status === "completed";
+    var html = '<span class="status ' + (good ? "ok" : "bad") + '">' +
+      (good ? "Success" : "Not solved") + " — outcome: " + escapeHtml(data.outcome) + "</span>";
+    html += '<div class="stats">' +
+      "<span>Steps: <b>" + data.step_count + "</b></span>" +
+      "<span>Wall time: <b>" + data.wall_clock_seconds + "s</b></span>" +
+      "<span>Tokens: <b>" + data.total_prompt_tokens + " in / " + data.total_completion_tokens + " out</b></span>" +
+      (data.total_cost_usd != null ? "<span>Cost: <b>$" + data.total_cost_usd.toFixed(4) + "</b></span>" : "") +
+      "</div>";
+    if (data.verifier_reason) {
+      html += '<div class="hint">Verifier: ' + escapeHtml(data.verifier_reason) + "</div>";
+    }
+    if ((data.steps || []).length) {
+      html += "<table><tr><th>#</th><th>Action</th><th>Observation</th></tr>";
+      data.steps.forEach(function (s) {
+        html += "<tr><td>" + s.step + "</td><td>" + escapeHtml(s.action) +
+          (s.ok === false ? ' <span class="err">✗</span>' : "") +
+          "</td><td class='obs'>" + escapeHtml(s.observation || "") + "</td></tr>";
+      });
+      html += "</table>";
+    }
+    resultBox.innerHTML = html;
+  } else {
+    var msg = data.message || data.detail || JSON.stringify(data);
+    resultBox.innerHTML = '<span class="status bad">' + escapeHtml(data.status || "error") + "</span>" +
+      '<div class="err">' + escapeHtml(msg) + "</div>";
+  }
+}
+</script>
+</body>
+</html>

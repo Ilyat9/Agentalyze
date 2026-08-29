@@ -79,6 +79,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument(
+        "--demo-mode",
+        action="store_true",
+        help=(
+            "Expose the public BYOK demo endpoints (GET /demo, POST /demo/run; "
+            "see docs/DEMO_DEPLOYMENT.md). OFF by default — equivalent to "
+            "AGENTALYZE_DEMO_MODE_ENABLED=1."
+        ),
+    )
 
     key_parser = subparsers.add_parser(
         "create-api-key",
@@ -180,6 +189,8 @@ def _cmd_serve(args: argparse.Namespace, settings: Settings) -> int:
     from agentalyze.api.observability import configure_logging
 
     configure_logging(settings.log_level, json_format=settings.log_format == "json")
+    if args.demo_mode:
+        settings = Settings(**{**settings.model_dump(), "demo_mode_enabled": True})
     uvicorn.run(create_app(settings), host=args.host, port=args.port)
     return 0
 

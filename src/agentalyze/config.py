@@ -122,6 +122,71 @@ class Settings(BaseSettings):
         default="local",
     )
 
+    # --- Public demo mode (src/agentalyze/demo). Inert unless explicitly ------
+    # --- enabled: regular self-hosted `agentalyze serve` deployments must ------
+    # --- never gain this (BYOK-key-accepting) API surface by accident. ---------
+    demo_mode_enabled: bool = Field(
+        default=False,
+        description=(
+            "Enable the public BYOK demo endpoints (GET /demo, POST /demo/run). "
+            "OFF by default — this surface accepts provider API keys from "
+            "anonymous visitors and must only be enabled on a dedicated demo "
+            "deployment (see docs/DEMO_DEPLOYMENT.md)."
+        ),
+    )
+    demo_https_required: bool = Field(
+        default=True,
+        description=(
+            "When true, POST /demo/run refuses requests that did not arrive "
+            "over HTTPS (checked via X-Forwarded-Proto set by the hosting "
+            "platform's TLS terminator; localhost is always allowed for dev)."
+        ),
+    )
+    demo_rate_limit: str = Field(
+        default="3 per hour",
+        description=(
+            "Request-rate limit for POST /demo/run per client IP (slowapi), "
+            "e.g. '3 per hour'. 'none' disables it (strongly discouraged for "
+            "a public, unauthenticated endpoint)."
+        ),
+    )
+    demo_run_timeout_seconds: float = Field(
+        default=90.0,
+        gt=0,
+        description=(
+            "Hard wall-clock budget for ONE demo run, enforced from the HTTP "
+            "handler with asyncio.wait_for. The response never hangs longer "
+            "than this, whatever the task/browser/provider do."
+        ),
+    )
+    demo_provider_timeout_seconds: float = Field(
+        default=20.0,
+        gt=0,
+        description=(
+            "Per-completion timeout for the demo-built provider. Deliberately "
+            "shorter than the eval default: a demo run must fail fast against "
+            "a slow/broken endpoint instead of burning the visitor's budget."
+        ),
+    )
+    demo_max_concurrent_runs: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "How many demo runs may hold a real Chromium at the same time "
+            "inside this process. Excess requests get an honest 503."
+        ),
+    )
+    chromium_launch_args: str = Field(
+        default="",
+        description=(
+            "Comma-separated extra Chromium launch args applied by the runner "
+            "(react_loop) to shrink headless-browser memory/CPU usage on "
+            "small hosting tiers, e.g. "
+            "'--disable-dev-shm-usage,--disable-gpu'. Empty = Playwright "
+            "defaults (the historical behavior)."
+        ),
+    )
+
 
     @field_validator("fixtures_dir", "results_dir", mode="after")
     @classmethod
@@ -134,6 +199,10 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return value.upper()
         return value
+
+    def chromium_args(self) -> list[str]:
+        """Parse :attr:`chromium_launch_args` into a clean list for Playwright."""
+        return [arg.strip() for arg in self.chromium_launch_args.split(",") if arg.strip()]
 
     def ensure_results_dir(self) -> Path:
         """Create ``results_dir`` if it does not exist and return it."""

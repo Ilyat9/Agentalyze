@@ -219,10 +219,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = session_factory
 
-    # --- Rate limiting (slowapi) on POST /runs, per API key ------------------
+    # --- Rate limiting (slowapi): POST /runs per API key, and — when demo ---
+    # --- mode is on — POST /demo/run per client IP (anonymous visitors). ----
     rate_limit_value = settings.api_runs_rate_limit.strip().lower()
+    demo_limit_value = (
+        settings.demo_rate_limit.strip().lower() if settings.demo_mode_enabled else "none"
+    )
     limiter = None
-    if rate_limit_value not in {"", "none", "disabled"}:
+    if rate_limit_value not in {"", "none", "disabled"} or demo_limit_value not in {
+        "",
+        "none",
+        "disabled",
+    }:
         from slowapi import Limiter
 
         limiter = Limiter(key_func=_client_key)
@@ -237,7 +245,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "rate limit exceeded for POST /runs"},
+                content={"detail": "rate limit exceeded; slow down and retry later"},
                 headers=headers,
             )
 
@@ -519,6 +527,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/metrics", summary="Prometheus metrics (text exposition format).")
     async def metrics_endpoint() -> Response:
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    if settings.demo_mode_enabled:
+        # Opt-in public-demo surface (BYOK). Deliberately mounted ONLY when
+        # explicitly enabled: self-hosted `agentalyze serve` deployments must
+        # not gain a key-accepting anonymous endpoint by default. The router
+        # shares the SAME slowapi limiter as POST /runs (per-IP for demo).
+        from agentalyze.demo.routes import create_demo_router
+
+        app.include_router(create_demo_router(settings, limiter))
+        logger.info(
+            "demo mode enabled",
+            demo_rate_limit=settings.demo_rate_limit,
+            demo_run_timeout_seconds=settings.demo_run_timeout_seconds,
+        )
 
     return app
 
