@@ -641,7 +641,9 @@ taskSelect.addEventListener("change", function(){
 });
 
 function renderTasks(){
-  var current = taskSelect.value;
+  var ta = document.getElementById("custom_instructions");
+  if (ta) { customText = ta.value; }
+  var prev = taskSelect.value;
   taskSelect.innerHTML = "";
   tasksData.forEach(function (task) {
     var opt = document.createElement("option");
@@ -653,8 +655,19 @@ function renderTasks(){
   customOpt.value = "custom";
   customOpt.textContent = t("custom_option");
   taskSelect.appendChild(customOpt);
-  if (current) { taskSelect.value = current; }
-  if (!taskSelect.value) { taskSelect.selectedIndex = 0; }
+  // Restore the previous selection only if it is a REAL task, or a custom
+  // task the visitor has actually typed into. Never auto-select "custom":
+  // an early render (before /demo/tasks resolves) must not strand the form
+  // on a disabled-by-empty state. Default to the first allowlisted task.
+  var restore;
+  if (prev === "custom" && customText) {
+    restore = "custom";
+  } else if (tasksData.some(function (tk) { return tk.id === prev; })) {
+    restore = prev;
+  } else {
+    restore = tasksData.length ? tasksData[0].id : "";
+  }
+  if (restore) { taskSelect.value = restore; }
   customTa.style.display = taskSelect.value === "custom" ? "block" : "none";
   taskSelect.dispatchEvent(new Event("change"));
 }
