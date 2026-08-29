@@ -40,7 +40,7 @@ from urllib.parse import urlparse
 
 import structlog
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from agentalyze.config import Settings
@@ -541,9 +541,20 @@ def register_public_fixtures(app: FastAPI, settings: Settings) -> None:
     """
     settings.fixtures_dir.mkdir(parents=True, exist_ok=True)
 
-    @app.get("/{fixture_path:path}", include_in_schema=False)
-    async def demo_fixture_catchall(fixture_path: str) -> FileResponse:
-        """Serve one fixture file (traversal-guarded); 404 otherwise."""
+    @app.get(
+        "/{fixture_path:path}",
+        include_in_schema=False,
+        response_model=None,  # union of raw Response types — no model inference
+    )
+    async def demo_fixture_catchall(fixture_path: str) -> FileResponse | RedirectResponse:
+        """Serve one fixture file (traversal-guarded); 404 otherwise.
+
+        The bare host root (empty path) redirects to the demo page: humans
+        typing the domain without a path should land on the UI, not on a
+        JSON error. Unknown non-fixture paths keep returning 404.
+        """
+        if not fixture_path:
+            return RedirectResponse("/demo", status_code=status.HTTP_302_FOUND)
         base = settings.fixtures_dir.resolve()
         target = (base / fixture_path).resolve()
         try:

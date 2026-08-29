@@ -102,3 +102,8 @@ def test_fixtures_are_served_publicly(tmp_path: object, make_client: object) -> 
     assert client.get("/%2e%2e/etc/passwd").status_code == 404
     assert client.get("/navigation/../../etc/passwd").status_code == 404
     assert client.get("/definitely-not-a-fixture.html").status_code == 404
+
+    # The bare host root lands humans on the demo UI, not a JSON error.
+    root = client.get("/", follow_redirects=False)
+    assert root.status_code in (301, 302, 307)
+    assert root.headers["location"].endswith("/demo")
