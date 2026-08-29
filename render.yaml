@@ -1,0 +1,25 @@
+# Render Blueprint для публичного BYOK-демо (см. docs/DEMO_DEPLOYMENT.md).
+# Деплой: Render Dashboard → New + → Blueprint → выбрать репозиторий.
+# Значения с sync: false Render запросит при создании (секреты в git не попадают).
+services:
+  - type: web
+    name: agentalyze-demo
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerCommand: serve --host 0.0.0.0 --port 10000 --demo-mode
+    healthCheckPath: /livez
+    envVars:
+      - key: AGENTALYZE_DATABASE_URL
+        value: sqlite+aiosqlite:////tmp/svc.db
+      - key: AGENTALYZE_RESULTS_DIR
+        value: /tmp/results
+      - key: AGENTALYZE_DEMO_RATE_LIMIT
+        value: 3 per hour
+      # Browserless: wss://<region>.browserless.io/chrome?token=<ключ>
+      - key: AGENTALYZE_BROWSER_CDP_ENDPOINT
+        sync: false
+      # Публичный URL этого же сервиса: https://agentalyze-demo.onrender.com
+      - key: AGENTALYZE_DEMO_FIXTURE_BASE_URL
+        sync: false
