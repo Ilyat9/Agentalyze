@@ -30,7 +30,9 @@ Chromium.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
+import socket
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
@@ -73,6 +75,57 @@ _LOCAL_HOSTNAMES = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "testserver"}
 _LOCAL_PROVIDER_HOSTNAMES = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
 _MAX_OBSERVATION_CHARS = 220
+
+#: Cap on the raw request body. The endpoint reads the whole body into
+#: memory; without a cap an anonymous visitor could memory-DoS a small
+#: hosting instance with a handful of gigabyte-sized POSTs. A valid demo
+#: body is a few hundred bytes; 64 KB is a generous ceiling.
+_MAX_BODY_BYTES = 64 * 1024
+
+
+def _host_is_private(hostname: str) -> bool:
+    """True when ``hostname`` is (or resolves to) a non-public address.
+
+    SSRF guard for the public demo: the visitor controls ``base_url``, and
+    the server would otherwise happily POST the (visitor-supplied) key to
+    internal services — cloud metadata (169.254.169.254), RFC1918 space,
+    loopback. Hostnames are resolved so a name pointing at a private IP is
+    caught too. Unresolvable names are allowed through: the provider call
+    then fails honestly with a connection error.
+    """
+    try:
+        candidates = [str(ipaddress.ip_address(hostname))]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+        except OSError:
+            return False
+        candidates = sorted({str(info[4][0]) for info in infos})
+    for candidate in candidates:
+        try:
+            addr = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if any(addr in network for network in _FAKE_IP_VPN_RANGES):
+            # 198.18.0.0/15 (RFC 2544 benchmark range): used by local VPN
+            # clients (Clash/Surge fake-IP DNS mode) to answer ALL DNS
+            # queries — including perfectly public hostnames like
+            # openrouter.ai — on the demo host itself. No real internal
+            # service lives in this range, so it is deliberately excluded.
+            continue
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_multicast
+        ):
+            return True
+    return False
+
+
+#: See _host_is_private: fake-IP DNS ranges of local VPN clients.
+_FAKE_IP_VPN_RANGES = (ipaddress.ip_network("198.18.0.0/15"),)
 
 
 class DemoRunRequest(BaseModel):
@@ -234,12 +287,26 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
         }
 
     async def demo_run(request: Request) -> JSONResponse:
+        # ---- 0. Body-size cap: reject BEFORE reading anything into memory. -
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit() and int(content_length) > _MAX_BODY_BYTES:
+            return JSONResponse(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                content={"detail": "request body too large"},
+            )
+        body_bytes = await request.body()
+        if len(body_bytes) > _MAX_BODY_BYTES:
+            return JSONResponse(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                content={"detail": "request body too large"},
+            )
+
         # ---- 1. Raw-body parsing: BEFORE anything else touches the key. -----
         # We parse JSON ourselves: FastAPI's request validation would echo the
         # offending input value in its 422 response, which is an unacceptable
         # leak surface for a secret.
         try:
-            raw: Any = json.loads((await request.body()) or b"{}")
+            raw: Any = json.loads(body_bytes or b"{}")
         except ValueError:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -311,6 +378,23 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
                     "detail": "refusing to send the API key to a non-HTTPS endpoint"
+                },
+            )
+
+        # ---- 4b. SSRF guard: in public mode the key must never travel to --
+        # ---- private/internal addresses (metadata service, RFC1918,       --
+        # ---- loopback), even over HTTPS. Dev mode (https off) keeps       --
+        # ---- localhost allowed for local model servers.                   --
+        if settings.demo_https_required and await asyncio.to_thread(
+            _host_is_private, parsed.hostname
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "detail": (
+                        "refusing to send the API key to a private/internal "
+                        "endpoint (SSRF guard)"
+                    )
                 },
             )
 
