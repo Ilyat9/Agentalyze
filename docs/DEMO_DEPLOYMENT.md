@@ -229,3 +229,32 @@ Launch-план $0 + $30 кредитов one-time). Тогда:
 меняется. Покрыто тестами: `tests/demo/test_demo_remote_browser.py`
 (контракты конфигурации) и `tests/runner/test_cdp.py` (реальный Chromium
 через CDP с `fixture_base_url`).
+
+### 8.1. Фактический прод-деплой (выполнен, август 2026)
+
+Схема из §8 развёрнута и проверена на живом URL:
+
+- **Стек**: Render Free (Frankfurt, Docker, `Dockerfile.demo` — slim-оркестратор
+  ~562 MB без локального Chromium) + Browserless Free (Chromium по CDP, SFO).
+- **Live URL**: `https://agentalyze-demo.onrender.com/demo`
+- **Сервисная конфигурация Render**: runtime Docker, Dockerfile Path =
+  `./Dockerfile.demo`, Docker Command **пуст** (старт вшит в образ:
+  `AGENTALYZE_SERVE_ON_START=1`, порт из `PORT`), Health Check = `/livez`,
+  Blueprint-файл `render.yaml` в корне репо. 5 переменных окружения —
+  см. §8 + `AGENTALYZE_DATABASE_URL`/`AGENTALYZE_RESULTS_DIR` (в /tmp —
+  эфемерно, на free-тире диска нет).
+
+**Важный урок деплоя**: самодостаточный образ с встроенным Chromium
+(4.12 GB, ./Dockerfile) на Render Free не стартует вообще — мгновенный
+«Exited with status 128» с нулевым выводом процесса, воспроизводимо и с
+очисткой кэша. Slim-образ без Chromium (~562 MB) стартует нормально.
+Поэтому для бесплатного PaaS деплоить ТОЛЬКО `Dockerfile.demo`.
+
+Прожитые проверки публичного URL (все выполнены по HTTPS снаружи):
+`/livez` 200, `/readyz` 200, `/demo` 200 (RU-страница), `/demo/tasks` 200
+(allowlist 3 задачи), фикстуры с корня `/navigation/simple_link_01.html` 200,
+неизвестный путь 404, path traversal 404, `POST /runs`/`GET /runs` без Bearer
+→ 401, `/demo/run` без ключа → 400, неизвестный task_id → 400 с allowlist,
+plain HTTP → 301/307 на HTTPS; e2e-цепочка Render→Browserless→OpenRouter
+прошла (с невалидным ключом — честный `failure_provider_error`, ключ в
+ответе/логах отсутствует).
