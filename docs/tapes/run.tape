@@ -21,7 +21,7 @@ Set BorderRadius 10
 Set TypingSpeed 12ms
 
 Sleep 500ms
-Type@400ms "source .venv/bin/activate && export PS1='$ '" Enter
+Type "source .venv/bin/activate && export PS1='$ '" Enter
 Sleep 300ms
 Type "cat <<'EOF'  # summary, реплеенный из реального прогона (trace a479c38a)" Enter
 Sleep 300ms
