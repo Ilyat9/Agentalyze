@@ -1,0 +1,81 @@
+# =============================================================================
+# Agentalyze — SLIM demo-orchestrator image (public BYOK demo hosting).
+#
+# Unlike ./Dockerfile (self-contained CLI+service image with bundled Chromium,
+# ~4 GB), this image contains NO browser: the public demo runs in split
+# architecture where headless Chromium lives in a remote browser-as-a-service
+# (e.g. Browserless) and the orchestrator reaches it over CDP via
+# AGENTALYZE_BROWSER_CDP_ENDPOINT. Rationale: PaaS free tiers (Render Free,
+# 512 MB) fail to even START containers built from the 4 GB Playwright image
+# (observed: instant 'Exited with status 128' with zero process output), while
+# a slim Python image starts fine — and the demo never launches a local
+# browser anyway.
+#
+# Serve-on-boot is baked in (AGENTALYZE_SERVE_ON_START=1): the image starts
+# `agentalyze serve --demo-mode` on 0.0.0.0:$PORT without any platform
+# command override. CLI usage is NOT the purpose of this image — use the main
+# Dockerfile for that.
+# =============================================================================
+
+# --- Stage 1: dependency builder --------------------------------------------
+FROM python:3.12-slim AS deps-builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Build tools only for the (rare) dependency without a prebuilt wheel; the
+# runtime stage below does NOT carry them.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# The playwright PYTHON package (no browsers!) is required: the runner imports
+# playwright and talks CDP; in CDP mode no local browser executable is touched.
+RUN pip install --no-cache-dir "playwright==1.62.0"
+
+COPY pyproject.toml README.md LICENSE.md ./
+RUN mkdir -p src/agentalyze \
+    && echo '"""Placeholder package: exists only to resolve dependencies."""' \
+        > src/agentalyze/__init__.py \
+    && pip install ".[api]"
+
+# --- Stage 2: slim runtime ----------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONUNBUFFERED=1 \
+    AGENTALYZE_FIXTURES_DIR=/app/fixtures \
+    # Serve-on-boot: the demo orchestrator IS a web service; no command
+    # override needed on platforms that mangle dockerCommand (Render).
+    AGENTALYZE_SERVE_ON_START=1
+
+WORKDIR /app
+
+COPY --from=deps-builder /usr/local/lib/python3.12/site-packages \
+     /usr/local/lib/python3.12/site-packages
+
+COPY src/ ./src/
+COPY pyproject.toml README.md LICENSE.md ./
+COPY alembic.ini ./alembic.ini
+COPY migrations/ ./migrations/
+RUN rm -rf /usr/local/lib/python3.12/site-packages/agentalyze* \
+    && pip install --no-deps . \
+    && rm -rf ./build
+
+# Demo task fixtures are served publicly in split mode (the remote browser
+# fetches task pages from this orchestrator over the public URL).
+COPY fixtures/ ./fixtures/
+
+# Non-root user for the long-lived service process.
+RUN useradd --create-home --uid 1000 agentalyze \
+    && mkdir -p /app/results /tmp/results \
+    && chown -R agentalyze:agentalyze /app
+USER agentalyze
+
+COPY --chmod=0755 deploy/agentalyze-entrypoint.sh /usr/local/bin/agentalyze-entrypoint
+ENTRYPOINT ["/usr/local/bin/agentalyze-entrypoint"]
+# Never reached in practice (SERVE_ON_START short-circuits), kept for safety.
+CMD ["--help"]
