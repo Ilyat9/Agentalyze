@@ -252,12 +252,27 @@ async def _run_react_cycle(
     state.outcome = RunOutcome.SUCCESS if verifier_result.success else RunOutcome.FAILURE_VERIFIER
 
 
-async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTrace:
+async def run_task(
+    task: Task,
+    provider: Provider,
+    settings: Settings,
+    *,
+    fixture_base_url: str | None = None,
+) -> RunTrace:
     """Run one task with one provider end-to-end and persist the trace.
 
+    ``fixture_base_url``: when given, task pages are fetched from this
+    PUBLIC base URL instead of the ephemeral local fixture server. This is
+    how remote-browser deployments work (``settings.browser_cdp_endpoint``,
+    e.g. a Browserless-style CDP endpoint): a browser running in someone
+    else's cloud cannot reach this host's ``127.0.0.1``, so fixtures must be
+    served from a URL it can reach. The local fixture server is skipped
+    entirely in that mode. Default (None) keeps the historical local-launch
+    behavior.
+
     Guarantees:
-    - the fixture server, browser context and browser are always torn down,
-      even on crashes (``finally`` at every resource level);
+    - the fixture server (when used), browser context and browser are always
+      torn down, even on crashes (``finally`` at every resource level);
     - any unhandled runner exception becomes ``RunOutcome.FAILURE_CRASH``
       with the full traceback in ``RunTrace.error``;
     - the resulting trace is saved to
@@ -270,15 +285,29 @@ async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTra
     run_artifact_dir = Path(settings.results_dir) / run_id
 
     state = _CycleResult()
-    server = FixtureServer(root=settings.fixtures_dir)
-    server.start()
+    server: FixtureServer | None = None
+    base_url: str
+    if fixture_base_url is not None:
+        base_url = fixture_base_url.rstrip("/")
+    else:
+        server = FixtureServer(root=settings.fixtures_dir)
+        server.start()
+        base_url = server.base_url
     try:
         pw = await async_playwright().start()
         try:
-            browser = await pw.chromium.launch(
-                headless=True,
-                args=settings.chromium_args() or None,
-            )
+            if settings.browser_cdp_endpoint:
+                # Remote browser (browser-infra split): the orchestrator
+                # host stays lightweight, Chromium runs in the provider's
+                # cloud. ``close()`` on a CDP connection just disconnects.
+                browser = await pw.chromium.connect_over_cdp(
+                    settings.browser_cdp_endpoint
+                )
+            else:
+                browser = await pw.chromium.launch(
+                    headless=True,
+                    args=settings.chromium_args() or None,
+                )
             try:
                 context = await browser.new_context(viewport={"width": 1280, "height": 800})
                 try:
@@ -287,7 +316,7 @@ async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTra
                         task=task,
                         provider=provider,
                         page=page,
-                        base_url=server.base_url,
+                        base_url=base_url,
                         deadline_monotonic=deadline_monotonic,
                         run_artifact_dir=run_artifact_dir,
                         state=state,
@@ -304,7 +333,8 @@ async def run_task(task: Task, provider: Provider, settings: Settings) -> RunTra
         state.outcome = RunOutcome.FAILURE_CRASH
         state.error = "".join(traceback.format_exception(exc))
     finally:
-        server.stop()
+        if server is not None:
+            server.stop()
 
     assert state.outcome is not None  # set by every exit path above
     trace = RunTrace(

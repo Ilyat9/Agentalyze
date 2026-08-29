@@ -433,6 +433,30 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
             }
         )
 
+        # ---- 6b. Remote-browser plumbing (browser-infra split) --------------
+        # When the browser runs in someone else's cloud (browser_cdp_endpoint,
+        # e.g. Browserless), it cannot reach this host's 127.0.0.1 fixture
+        # server — task pages must come from the PUBLIC demo URL instead.
+        run_kwargs: dict[str, Any] = {}
+        if settings.browser_cdp_endpoint:
+            if not settings.demo_fixture_base_url:
+                logger.error(
+                    "remote browser configured without demo_fixture_base_url"
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={
+                        "status": "error",
+                        "error_kind": "config",
+                        "message": (
+                            "browser_cdp_endpoint is set but "
+                            "demo_fixture_base_url is not configured on the "
+                            "server"
+                        ),
+                    },
+                )
+            run_kwargs["fixture_base_url"] = settings.demo_fixture_base_url.rstrip("/")
+
         # ---- 7. Ephemeral artifacts: NEVER the shared results/ storage. -----
         # trace.json / screenshots are written to a per-request temp dir (they
         # contain no key) and deleted when this handler exits.
@@ -441,7 +465,7 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
             async with semaphore:
                 try:
                     trace = await asyncio.wait_for(
-                        run_task(demo_task, provider, run_settings),
+                        run_task(demo_task, provider, run_settings, **run_kwargs),
                         timeout=settings.demo_run_timeout_seconds,
                     )
                 except TimeoutError:
@@ -502,4 +526,24 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
         demo_run = limiter.limit(settings.demo_rate_limit)(demo_run)
 
     router.post("/run", dependencies=[Depends(_require_https)])(demo_run)
+
+    # Public fixture serving for remote-browser deployments: a browser in
+    # someone else's cloud must fetch task pages from a URL it can reach.
+    # Fixtures are plain, non-secret benchmark pages. Path traversal is
+    # rejected explicitly (resolved path must stay inside fixtures_dir).
+    @router.get("/fixtures/{fixture_path:path}", include_in_schema=False)
+    async def demo_fixture(fixture_path: str) -> FileResponse:
+        base = settings.fixtures_dir.resolve()
+        target = (base / fixture_path).resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="fixture not found"
+            ) from None
+        if not target.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="fixture not found"
+            )
+        return FileResponse(target, media_type="text/html")
     return router

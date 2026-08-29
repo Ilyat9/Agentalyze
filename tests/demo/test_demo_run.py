@@ -92,11 +92,10 @@ def test_demo_artifacts_do_not_touch_shared_results_dir(
         task: object, provider: object, run_settings: object
     ) -> object:
         # The runner writes its trace into the settings it was handed: for
-        # demo runs that MUST be the ephemeral per-request temp dir.
+        # demo runs that MUST be the ephemeral per-request temp dir (its
+        # prefix is controlled by the handler).
         assert run_settings.results_dir != results_dir
-        assert str(run_settings.results_dir).startswith("/tmp") or "tmp" in str(
-            run_settings.results_dir
-        )
+        assert "agentalyze-demo-" in str(run_settings.results_dir)
         return make_fake_trace("nav-simple-link-01", RunOutcome.SUCCESS)
 
     client = make_client(settings, stub_run_task)

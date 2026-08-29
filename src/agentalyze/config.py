@@ -186,6 +186,26 @@ class Settings(BaseSettings):
             "defaults (the historical behavior)."
         ),
     )
+    browser_cdp_endpoint: str = Field(
+        default="",
+        description=(
+            "Optional remote-browser CDP endpoint (ws/wss URL, e.g. "
+            "Browserless 'wss://production-sfo.browserless.io?token=...'). "
+            "When set, the runner connects to this browser instead of "
+            "launching a local Chromium — enables split deployments where "
+            "the API host stays lightweight and the browser runs elsewhere. "
+            "Empty = local Playwright launch (historical behavior)."
+        ),
+    )
+    demo_fixture_base_url: str = Field(
+        default="",
+        description=(
+            "Public base URL under which the demo router serves task "
+            "fixtures (GET /demo/fixtures/...). REQUIRED when "
+            "browser_cdp_endpoint is set: a remote browser cannot reach the "
+            "orchestrator's 127.0.0.1 fixture server."
+        ),
+    )
 
 
     @field_validator("fixtures_dir", "results_dir", mode="after")
