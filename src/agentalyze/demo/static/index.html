@@ -17,12 +17,6 @@
     --line-strong: #1c1b19;
     --moss: #3d5c47;
     --moss-bg: #e7ebe3;
-    --trace-bg: #1c1b19;
-    --trace-text: #d8d4c8;
-    --trace-line: #34322c;
-    --trace-dim: #6b6862;
-    --trace-strong: #f7f5f0;
-    --trace-accent: #a8b8a0;
     --mono: 'IBM Plex Mono', ui-monospace, monospace;
     --sans: 'IBM Plex Sans', -apple-system, sans-serif;
     --serif: 'Source Serif 4', Georgia, serif;
@@ -36,12 +30,6 @@
     --line-strong: #eeece4;
     --moss: #9ab89e;
     --moss-bg: #232a24;
-    --trace-bg: #0e0d0a;
-    --trace-text: #c4c0b3;
-    --trace-line: #2a281f;
-    --trace-dim: #5c584c;
-    --trace-strong: #eeece4;
-    --trace-accent: #8fae93;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
@@ -179,27 +167,29 @@
     font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
   }
 
-  /* --- trace panel --- */
+  /* --- trace panel (theme-aware: paper in light, dark in dark) --- */
   .trace-body{
-    flex:1; background: var(--trace-bg); font-family: var(--mono); font-size: 12.5px;
+    flex:1; background: var(--paper); font-family: var(--mono); font-size: 12.5px;
     padding: 20px 22px; overflow-y: auto; max-height: 560px; min-height: 560px;
-    color: var(--trace-text);
+    color: var(--ink-soft);
   }
-  .trace-line{ padding: 8px 0; border-bottom: 1px solid var(--trace-line); }
+  .trace-line{ padding: 8px 0; border-bottom: 1px solid var(--line); }
   .trace-line:last-child{ border-bottom:none; }
-  .trace-line .t{ color: var(--trace-dim); margin-right: 10px; }
+  .trace-line .t{ color: var(--ink-faint); margin-right: 10px; }
   .trace-line .tag{
     margin-right: 10px; text-transform: uppercase; font-size: 10.5px;
     letter-spacing: 0.03em; color: var(--ink-faint);
   }
-  .trace-line .msg{ color: var(--trace-text); }
-  .trace-line .msg b{ color: var(--trace-strong); font-weight: 500; }
-  .trace-line .msg .sel{ color: var(--trace-accent); }
-  .trace-line.done .tag{ color: var(--trace-accent); }
-  .trace-line.fail .tag{ color: #c98a8a; }
-  .trace-line.fail .msg{ color: #d8b8b8; }
+  .trace-line .msg{ color: var(--ink-soft); }
+  .trace-line .msg b{ color: var(--ink); font-weight: 500; }
+  .trace-line .msg .sel{ color: var(--moss); }
+  .trace-line.done .tag{ color: var(--moss); }
+  .trace-line.fail .tag{ color: #a04b4b; }
+  .trace-line.fail .msg{ color: #a04b4b; }
+  html[data-theme="dark"] .trace-line.fail .tag,
+  html[data-theme="dark"] .trace-line.fail .msg{ color: #c98a8a; }
   .trace-empty{
-    color: var(--trace-dim); display:flex; align-items:center; justify-content:center;
+    color: var(--ink-faint); display:flex; align-items:center; justify-content:center;
     height: 100%; text-align:center; font-family: var(--sans); font-size: 13px; line-height: 1.6;
   }
   .foot-note{ margin-top: 26px; font-size: 12.5px; color: var(--ink-faint); }
