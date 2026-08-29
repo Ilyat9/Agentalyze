@@ -59,6 +59,28 @@ def test_behind_local_proxy_visitors_get_separate_ip_buckets(
     )
     assert visitor_b.status_code == 200
 
+    # nginx/Caddy-style proxies append to X-Forwarded-For: the LAST entry is
+    # the real client, earlier entries are client-controlled.
+    first_c = client.post(
+        "/demo/run",
+        json=valid_run_body(),
+        headers={"X-Forwarded-For": "203.0.113.99, 198.51.100.33"},
+    )
+    second_c = client.post(
+        "/demo/run",
+        json=valid_run_body(),
+        headers={"X-Forwarded-For": "anything-spoofed, 198.51.100.33"},
+    )
+    assert first_c.status_code == 200
+    assert second_c.status_code == 429  # same real IP (last XFF entry) = same bucket
+
+    visitor_d = client.post(
+        "/demo/run",
+        json=valid_run_body(),
+        headers={"X-Forwarded-For": "198.51.100.77"},
+    )
+    assert visitor_d.status_code == 200
+
     # A remote socket cannot spoof the header to rotate buckets: only
     # loopback (and the TestClient's own address) may set CF-Connecting-IP.
     from agentalyze.api.app import _PROXY_TRUSTED_REMOTE_HOSTS

@@ -197,6 +197,14 @@ def _client_key(request: Request) -> str:
     cf_ip = request.headers.get("cf-connecting-ip")
     if cf_ip and remote in _PROXY_TRUSTED_REMOTE_HOSTS:
         return f"ip:{cf_ip}"
+    # Non-Cloudflare proxies (nginx, Caddy) set X-Forwarded-For by APPENDING
+    # the real client IP, so the LAST entry is the trustworthy one (earlier
+    # entries are client-controlled).
+    xff = request.headers.get("x-forwarded-for")
+    if xff and remote in _PROXY_TRUSTED_REMOTE_HOSTS:
+        real_ip = xff.split(",")[-1].strip()
+        if real_ip:
+            return f"ip:{real_ip}"
     return f"ip:{remote or 'unknown'}"
 
 
