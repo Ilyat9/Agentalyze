@@ -65,7 +65,12 @@
 
   /* ---------- layout ---------- */
   .wrap{ max-width: 1040px; margin: 0 auto; padding: 56px 32px 80px; }
-  .hero{ max-width: 640px; margin-bottom: 56px; }
+  .hero-grid{
+    display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px;
+    align-items: start; margin-bottom: 56px;
+  }
+  @media (max-width: 900px){ .hero-grid{ grid-template-columns: 1fr; gap: 36px; } }
+  .hero{ max-width: 600px; }
   .status-line{
     display:flex; align-items:center; gap: 9px; margin-top: 20px;
     font-family: var(--mono); font-size: 12px; color: var(--ink-faint);
@@ -74,6 +79,48 @@
   .status-line.up{ color: var(--ink-soft); }
   .status-line.up .dot{ background: var(--moss); }
   .status-line.warn .dot{ background: #b08a3e; }
+
+  /* ---------- hero preview terminal (illustrative loop, clearly labeled) ---------- */
+  .hero-preview{
+    position: sticky; top: 24px; border: 1px solid var(--line-strong);
+    background: var(--paper); display: flex; flex-direction: column;
+  }
+  @media (max-width: 900px){ .hero-preview{ position: static; } }
+  .hero-preview-head{
+    padding: 12px 18px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .hero-preview-head .label{
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.03em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .hero-preview-head .rec{
+    font-family: var(--mono); font-size: 11px; color: var(--moss);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .hero-preview-head .rec::before{
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--moss);
+    animation: rec-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes rec-pulse{ 50%{ opacity: .25; } }
+  .hero-preview-body{ padding: 16px 18px 18px; font-family: var(--mono); font-size: 12px; min-height: 262px; }
+  .hero-preview-line{
+    padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft);
+    opacity: 0; animation: preview-in .3s ease forwards;
+  }
+  .hero-preview-line:last-child{ border-bottom: none; }
+  .hero-preview-line .t{ color: var(--ink-faint); margin-right: 9px; }
+  .hero-preview-line .tag{
+    color: var(--ink-faint); text-transform: uppercase; font-size: 10px;
+    margin-right: 9px; letter-spacing: 0.03em;
+  }
+  .hero-preview-line b{ color: var(--ink); font-weight: 500; }
+  .hero-preview-line .sel{ color: var(--moss); }
+  @keyframes preview-in{ from{ opacity: 0; transform: translateY(3px); } to{ opacity: 1; transform: translateY(0); } }
+  .hero-preview-foot{
+    padding: 11px 18px; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint);
+  }
   .kicker{
     font-family: var(--mono); font-size: 11.5px; color: var(--moss);
     letter-spacing: 0.03em; margin-bottom: 18px; text-transform: uppercase;
@@ -225,14 +272,25 @@
 
   <div class="wrap">
 
-    <div class="hero">
-      <div class="kicker" data-i18n="kicker"></div>
-      <h1 data-i18n="h1"></h1>
-      <p class="lede" data-i18n="lede"></p>
-      <div class="status-line" id="live_box">
-        <span class="dot"></span>
-        <span id="live_status" data-i18n="status_checking"></span>
-        <span id="rate_note"></span>
+    <div class="hero-grid">
+      <div class="hero">
+        <div class="kicker" data-i18n="kicker"></div>
+        <h1 data-i18n="h1"></h1>
+        <p class="lede" data-i18n="lede"></p>
+        <div class="status-line" id="live_box">
+          <span class="dot"></span>
+          <span id="live_status" data-i18n="status_checking"></span>
+          <span id="rate_note"></span>
+        </div>
+      </div>
+
+      <div class="hero-preview">
+        <div class="hero-preview-head">
+          <span class="label" data-i18n="preview_label"></span>
+          <span class="rec" data-i18n="preview_rec"></span>
+        </div>
+        <div class="hero-preview-body" id="heroPreview"></div>
+        <div class="hero-preview-foot" data-i18n="preview_foot"></div>
       </div>
     </div>
 
@@ -343,6 +401,18 @@ var I18N = {
     rate_limit_label: "лимит:",
     fineprint_cold: "Первый запуск после простоя может занять до минуты — бесплатный хостинг «просыпается» по запросу.",
     fineprint_ollama: "Работают только облачные OpenAI-совместимые эндпоинты; Ollama недоступна анонимному серверу.",
+    preview_label: "предпросмотр трейса",
+    preview_rec: "запись",
+    preview_foot: "пример прогона · твоя задача может отличаться",
+    preview_steps: [
+      { t: "00.0s", tag: "nav", html: "Открываю <b>test-shop.demo</b>" },
+      { t: "01.2s", tag: "think", html: "Ищу элемент навигации со ссылкой на тарифы" },
+      { t: "02.4s", tag: "act", html: "Клик по <span class=\"sel\">nav a[href*=\"pricing\"]</span>" },
+      { t: "03.7s", tag: "nav", html: "Переход на <b>/pricing</b>" },
+      { t: "04.9s", tag: "think", html: "Сравниваю три карточки тарифов по цене" },
+      { t: "06.1s", tag: "act", html: "Извлекаю текст из <span class=\"sel\">.price-card .amount</span>" },
+      { t: "07.3s", tag: "done", html: "Готово: самый дешёвый тариф — <b>Starter, €9/мес</b>" }
+    ],
     notice_5: "Первый запуск после простоя может занять до минуты, потому что бесплатный хостинг «просыпается» по запросу.",
     notice_6: "Работают только облачные OpenAI-совместимые эндпоинты. <code>Ollama</code> недоступна анонимному серверу.",
     label_endpoint: "Эндпоинт провайдера",
@@ -419,6 +489,18 @@ var I18N = {
     rate_limit_label: "rate limit:",
     fineprint_cold: "The first run after a quiet period can take up to a minute — free hosting wakes up on demand.",
     fineprint_ollama: "Cloud OpenAI-compatible endpoints only; Ollama is unreachable from an anonymous server.",
+    preview_label: "trace preview",
+    preview_rec: "rec",
+    preview_foot: "sample run · your task may differ",
+    preview_steps: [
+      { t: "00.0s", tag: "nav", html: "Opening <b>test-shop.demo</b>" },
+      { t: "01.2s", tag: "think", html: "Looking for the nav link to the pricing page" },
+      { t: "02.4s", tag: "act", html: "Click <span class=\"sel\">nav a[href*=\"pricing\"]</span>" },
+      { t: "03.7s", tag: "nav", html: "Navigating to <b>/pricing</b>" },
+      { t: "04.9s", tag: "think", html: "Comparing the three pricing cards by price" },
+      { t: "06.1s", tag: "act", html: "Extracting text from <span class=\"sel\">.price-card .amount</span>" },
+      { t: "07.3s", tag: "done", html: "Done: the cheapest plan is <b>Starter, €9/mo</b>" }
+    ],
     notice_5: "The first run after a quiet period can take up to a minute — free hosting wakes up on demand.",
     notice_6: "Cloud OpenAI-compatible endpoints only. <code>Ollama</code> is unreachable from an anonymous server.",
     label_endpoint: "Provider endpoint",
@@ -514,6 +596,7 @@ function applyLang(){
   document.getElementById("key_toggle").textContent = "show";
   themeLabel();
   renderTasks();
+  playHeroPreview();
   if (lastData) { render(lastData); }
 }
 
@@ -608,6 +691,25 @@ function wakingLive() {
   }, 5000);
 }
 checkLive();
+
+/* ---------- looping hero preview: illustrative demo loop, clearly labeled ---------- */
+var previewTimer = null;
+function playHeroPreview() {
+  var el = document.getElementById("heroPreview");
+  if (!el) { return; }
+  if (previewTimer) { clearInterval(previewTimer); }
+  var steps = I18N[lang].preview_steps || [];
+  el.innerHTML = "";
+  steps.forEach(function (s, i) {
+    setTimeout(function () {
+      var line = document.createElement("div");
+      line.className = "hero-preview-line";
+      line.innerHTML = '<span class="t">' + s.t + '</span><span class="tag">' + s.tag + "</span>" + s.html;
+      el.appendChild(line);
+    }, i * 480);
+  });
+  previewTimer = setInterval(function () { playHeroPreview(); }, steps.length * 480 + 2400);
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
