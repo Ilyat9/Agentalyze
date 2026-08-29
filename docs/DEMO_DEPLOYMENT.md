@@ -221,8 +221,8 @@ Launch-план $0 + $30 кредитов one-time). Тогда:
 
 | Переменная | Смысл |
 |---|---|
-| `AGENTALYZE_BROWSER_CDP_ENDPOINT` | ws/wss CDP-эндпоинт провайдера (например `wss://production-sfo.browserless.io?token=...`). Задан → раннер делает `connect_over_cdp` вместо локального launch |
-| `AGENTALYZE_DEMO_FIXTURE_BASE_URL` | **обязателен в этом режиме**: публичный URL раздачи фикстур `https://<host>/demo/fixtures` — удалённый браузер не видит 127.0.0.1 оркестратора. Фикстуры — не секретные тестовые страницы, раздаются роутером `GET /demo/fixtures/{path}` (с защитой от path traversal) |
+| `AGENTALYZE_BROWSER_CDP_ENDPOINT` | ws/wss CDP-эндпоинт провайдера (например `wss://production-sfo.browserless.io/chrome?token=...`). Задан → раннер делает `connect_over_cdp` вместо локального launch |
+| `AGENTALYZE_DEMO_FIXTURE_BASE_URL` | **обязателен в этом режиме**: корневой URL раздачи фикстур `https://<host>` — удалённый браузер не видит 127.0.0.1 оркестратора. Фикстуры — не секретные тестовые страницы; они раздаются **с корня хоста** (`GET /{fixture_path}` — как локальный FixtureServer, т.к. ссылки в фикстурах абсолютные), роут-catch-all регистрируется последним, API-эндпоинты всегда приоритетны; path traversal отвергается |
 
 Ключ посетителя по-прежнему живёт ТОЛЬКО в оркестраторе и уходит в API
 провайдера; браузер получает лишь страницы задач — security-модель не

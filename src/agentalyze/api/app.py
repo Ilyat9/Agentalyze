@@ -562,9 +562,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # explicitly enabled: self-hosted `agentalyze serve` deployments must
         # not gain a key-accepting anonymous endpoint by default. The router
         # shares the SAME slowapi limiter as POST /runs (per-IP for demo).
-        from agentalyze.demo.routes import create_demo_router
+        from agentalyze.demo.routes import create_demo_router, register_public_fixtures
 
         app.include_router(create_demo_router(settings, limiter))
+        # Root-level catch-all for public fixture serving (remote-browser
+        # deployments): registered last so every real endpoint wins.
+        register_public_fixtures(app, settings)
         logger.info(
             "demo mode enabled",
             demo_rate_limit=settings.demo_rate_limit,

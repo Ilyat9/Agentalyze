@@ -80,12 +80,25 @@ def test_local_browser_mode_keeps_historical_call_signature(
 
 
 def test_fixtures_are_served_publicly(tmp_path: object, make_client: object) -> None:
+    """Fixtures are mirrored at the HOST ROOT (like the local FixtureServer):
+    fixture pages use absolute-path links (/navigation/docs_01.html), so the
+    public mirror must serve them from the root too."""
     settings = make_demo_settings(tmp_path)
     page = settings.fixtures_dir / "navigation" / "simple_link_01.html"
     page.parent.mkdir(parents=True)
     page.write_text("<html><body>fixture-ok</body></html>", encoding="utf-8")
 
     client = make_client(settings)
-    response = client.get("/demo/fixtures/navigation/simple_link_01.html")
+    response = client.get("/navigation/simple_link_01.html")
     assert response.status_code == 200
     assert "fixture-ok" in response.text.replace("_", "-")
+
+    # Real endpoints still win over the catch-all (registration order).
+    assert client.get("/demo/tasks").status_code == 200
+    assert client.get("/livez").status_code == 200
+
+    # Path traversal is rejected: nothing outside fixtures_dir is served.
+    assert client.get("/../etc/passwd").status_code in (403, 404)
+    assert client.get("/%2e%2e/etc/passwd").status_code == 404
+    assert client.get("/navigation/../../etc/passwd").status_code == 404
+    assert client.get("/definitely-not-a-fixture.html").status_code == 404

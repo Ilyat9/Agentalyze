@@ -39,7 +39,7 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -526,13 +526,24 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
         demo_run = limiter.limit(settings.demo_rate_limit)(demo_run)
 
     router.post("/run", dependencies=[Depends(_require_https)])(demo_run)
+    return router
 
-    # Public fixture serving for remote-browser deployments: a browser in
-    # someone else's cloud must fetch task pages from a URL it can reach.
-    # Fixtures are plain, non-secret benchmark pages. Path traversal is
-    # rejected explicitly (resolved path must stay inside fixtures_dir).
-    @router.get("/fixtures/{fixture_path:path}", include_in_schema=False)
-    async def demo_fixture(fixture_path: str) -> FileResponse:
+
+def register_public_fixtures(app: FastAPI, settings: Settings) -> None:
+    """Serve task fixtures at the HOST ROOT: ``GET /{fixture_path}``.
+
+    Fixture pages use absolute-path links (``/navigation/docs_01.html``) and
+    the local FixtureServer serves them from the root — so the public mirror
+    must too. Registered LAST: every real endpoint matches first, unknown
+    paths fall through to the fixture lookup. Fixtures are plain, non-secret
+    benchmark pages; path traversal is rejected explicitly (the resolved
+    path must stay inside fixtures_dir).
+    """
+    settings.fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+    @app.get("/{fixture_path:path}", include_in_schema=False)
+    async def demo_fixture_catchall(fixture_path: str) -> FileResponse:
+        """Serve one fixture file (traversal-guarded); 404 otherwise."""
         base = settings.fixtures_dir.resolve()
         target = (base / fixture_path).resolve()
         try:
@@ -546,4 +557,3 @@ def create_demo_router(settings: Settings, limiter: Any | None) -> APIRouter:
                 status_code=status.HTTP_404_NOT_FOUND, detail="fixture not found"
             )
         return FileResponse(target, media_type="text/html")
-    return router
