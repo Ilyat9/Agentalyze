@@ -26,6 +26,7 @@ gracefully when their snapshot reference goes stale.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from urllib.parse import urljoin, urlsplit
@@ -447,12 +448,19 @@ async def do_done(
     # steps (the verifier protocol intentionally receives only the page).
     # Best-effort: the ack result below stays the authoritative record; an
     # about:blank or closing page must never crash the final step.
+    # NOTE: evaluate() has no built-in timeout and HANGS indefinitely if the
+    # page is mid-navigation (execution context not yet swapped), so this is
+    # wrapped in a hard asyncio deadline — a lost stamp is acceptable, a hung
+    # final step is not (it once wedged the whole CI browser suite).
     try:
-        await ctx.page.evaluate(
-            "v => document.documentElement.setAttribute('data-agent-verdict', v)",
-            "success" if success else "given-up",
+        await asyncio.wait_for(
+            ctx.page.evaluate(
+                "v => document.documentElement.setAttribute('data-agent-verdict', v)",
+                "success" if success else "given-up",
+            ),
+            timeout=5.0,
         )
-    except PlaywrightError:
+    except (TimeoutError, PlaywrightError):
         pass
     return ToolResult(
         success=bool(success),
