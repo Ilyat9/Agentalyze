@@ -6,172 +6,166 @@
 <title>Agentalyze — живое демо (свой API-ключ)</title>
 <style>
   :root {
-    --bg: #070b14; --panel: rgba(255,255,255,.035); --panel2: rgba(255,255,255,.06);
-    --border: rgba(255,255,255,.09); --border-hi: rgba(255,255,255,.18);
-    --text: #eef2fb; --muted: #9aa7c4; --dim: #6b7899;
-    --acc1: #6366f1; --acc2: #22d3ee; --grad: linear-gradient(135deg,#6366f1,#22d3ee);
-    --ok: #34d399; --bad: #f87171;
+    --bg: #ffffff; --subtle: #f6f8fa; --border: #d1d9e0; --border-muted: #e7ecf0;
+    --fg: #1f2328; --muted: #59636e; --dim: #818b98;
+    --accent: #0969da; --green: #1a7f37; --red: #d1242f;
+    --btn: #1f883d; --btn-hover: #1a7f37;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
   body {
-    margin: 0; padding: 0 1rem 3rem; background: var(--bg); color: var(--text);
-    font: 15.5px/1.6 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
+    margin: 0; padding: 0 1rem 3rem; background: var(--bg); color: var(--fg);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   }
-  body::before {
-    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background:
-      radial-gradient(700px 420px at 15% -5%, rgba(99,102,241,.16), transparent 60%),
-      radial-gradient(800px 500px at 90% 0%, rgba(34,211,238,.10), transparent 55%),
-      radial-gradient(600px 600px at 50% 110%, rgba(99,102,241,.07), transparent 60%);
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  /* header */
+  .topbar { border-bottom: 1px solid var(--border-muted); padding: .8rem 0; margin-bottom: 1.6rem; }
+  .topbar .inner { display: flex; align-items: center; justify-content: space-between; }
+  .wordmark { display: flex; align-items: baseline; gap: .5rem; font-weight: 600; font-size: 15px; }
+  .wordmark .tag {
+    font-size: 11px; font-weight: 500; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0 .5rem; line-height: 18px;
   }
-  .wrap { max-width: 780px; margin: 0 auto; }
-  header { display: flex; align-items: center; gap: .9rem; padding: 2.6rem 0 .4rem; }
-  .logo {
-    width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--grad);
-    display: grid; place-items: center; font-weight: 800; font-size: 1.25rem; color: #fff;
-    box-shadow: 0 4px 24px rgba(99,102,241,.45);
-  }
-  h1 { font-size: 1.55rem; margin: 0; letter-spacing: -.02em; }
-  h1 .grad {
-    background: var(--grad); -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
-  }
-  .sub { color: var(--muted); margin: .2rem 0 1.6rem; font-size: 1.02rem; }
-  .langswitch { position: fixed; top: 16px; right: 18px; z-index: 10; display: flex; gap: 2px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .langswitch { display: flex; gap: .25rem; }
   .langswitch button {
-    padding: .28rem .7rem; font-size: .78rem; font-weight: 700; letter-spacing: .04em;
-    background: transparent; color: var(--muted); border: 0; border-radius: 999px; cursor: pointer;
-    transition: all .15s;
+    padding: .15rem .5rem; font-size: 12px; color: var(--muted); background: none;
+    border: 1px solid transparent; border-radius: 6px; cursor: pointer;
   }
-  .langswitch button.active { color: #fff; background: var(--grad); }
+  .langswitch button:hover { color: var(--fg); }
+  .langswitch button.active { color: var(--fg); border-color: var(--border); background: var(--subtle); }
+
+  h1 { font-size: 20px; font-weight: 600; margin: 1.2rem 0 .3rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 1.4rem; }
+
+  /* notice (GitHub-style callout) */
+  .notice {
+    background: var(--subtle); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: .9rem 1.1rem; margin-bottom: 1.4rem; font-size: 13px; color: var(--muted);
+  }
+  .notice .ntitle { font-weight: 600; color: var(--fg); margin-bottom: .4rem; }
+  .notice ul { margin: 0; padding-left: 1.2rem; }
+  .notice li { margin: .25rem 0; }
+  .notice strong { color: var(--fg); }
+
+  /* form */
   .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-    padding: 1.4rem 1.5rem; margin-bottom: 1.1rem;
+    border: 1px solid var(--border); border-radius: 6px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem;
   }
-  label { display: block; font-weight: 600; margin: 1.1rem 0 .35rem; font-size: .93rem; }
-  label:first-child { margin-top: 0; }
+  .card > h2 {
+    font-size: 14px; font-weight: 600; margin: -1.1rem -1.2rem 1rem; padding: .7rem 1.2rem;
+    border-bottom: 1px solid var(--border-muted); background: var(--subtle);
+    border-radius: 6px 6px 0 0;
+  }
+  label { display: block; font-weight: 600; margin: 1rem 0 .3rem; font-size: 13px; }
+  label:first-of-type { margin-top: 0; }
   input[type="text"], input[type="password"], input[type="url"], select, textarea {
-    width: 100%; padding: .62rem .8rem; border-radius: 10px; border: 1px solid var(--border);
-    background: rgba(0,0,0,.30); color: var(--text); font-size: .95rem; font-family: inherit;
-    outline: none; transition: border-color .15s, box-shadow .15s;
+    width: 100%; padding: .4rem .65rem; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font-size: 13px; font-family: inherit; outline: none;
+    transition: border-color .1s;
   }
   input:focus, select:focus, textarea:focus {
-    border-color: var(--acc1); box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(9,105,218,.12);
   }
-  input[type="password"] { letter-spacing: 2px; }
-  .hint { color: var(--dim); font-size: .8rem; margin-top: .3rem; }
-  .hint code { background: rgba(255,255,255,.07); padding: .05rem .3rem; border-radius: 4px; }
-  .notice {
-    background: linear-gradient(180deg, rgba(99,102,241,.09), rgba(99,102,241,.035));
-    border: 1px solid rgba(99,102,241,.30); border-radius: 16px; padding: 1.2rem 1.4rem;
-    margin-bottom: 1.3rem; font-size: .93rem;
+  input[type="password"] { letter-spacing: 1.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: .3rem; }
+  .hint code {
+    background: var(--subtle); border: 1px solid var(--border-muted); border-radius: 4px;
+    padding: 0 .3rem; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
-  .notice .ntitle { display: flex; align-items: center; gap: .55rem; font-weight: 700; margin-bottom: .5rem; }
-  .notice .ntitle svg { flex: none; }
-  .notice ul { margin: 0; padding-left: 1.25rem; }
-  .notice li { margin: .3rem 0; color: var(--muted); }
-  .notice li strong { color: var(--text); }
 
-  /* ---------- task tiles ---------- */
-  .tiles { display: grid; gap: .6rem; }
+  /* task rows (settings-list style) */
+  .tiles { display: grid; gap: .5rem; }
   .tile { position: relative; }
   .tile > input { position: absolute; opacity: 0; pointer-events: none; }
   .tile > label {
-    display: block; margin: 0; padding: .85rem 1rem; border: 1px solid var(--border);
-    border-radius: 12px; cursor: pointer; transition: all .15s; background: rgba(0,0,0,.2);
+    display: block; margin: 0; padding: .6rem .8rem; border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; transition: background .1s, border-color .1s;
   }
-  .tile > label:hover { border-color: var(--border-hi); }
+  .tile > label:hover { background: var(--subtle); }
   .tile > input:checked + label {
-    border-color: var(--acc1); background: rgba(99,102,241,.12);
-    box-shadow: 0 0 0 1px var(--acc1), 0 4px 18px rgba(99,102,241,.15);
+    border-color: var(--accent); background: #f3f8ff;
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .tile .ttitle { font-weight: 600; display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
-  .tile .steps { color: var(--dim); font-size: .76rem; font-weight: 500; }
+  .tile .ttitle { font-weight: 600; font-size: 13px; display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap; }
+  .tile .steps { color: var(--dim); font-size: 11px; font-weight: 400; }
   .tile .badge {
-    font-size: .66rem; padding: .1rem .5rem; border-radius: 999px; background: var(--grad);
-    color: #fff; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    font-size: 10px; font-weight: 500; color: var(--accent); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0 .45rem; line-height: 16px; text-transform: uppercase; letter-spacing: .03em;
   }
-  .tile .desc { color: var(--muted); font-size: .83rem; margin-top: .15rem; }
-  .tile textarea { margin-top: .65rem; resize: vertical; min-height: 70px; }
-  .counter { text-align: right; font-size: .74rem; color: var(--dim); margin-top: .2rem; }
+  .tile .desc { color: var(--muted); font-size: 12px; margin-top: .1rem; }
+  .tile textarea { margin-top: .55rem; resize: vertical; min-height: 62px;
+    font-family: inherit; }
+  .counter { text-align: right; font-size: 11px; color: var(--dim); margin-top: .15rem; }
 
-  /* ---------- consent + run ---------- */
-  .consent { display: flex; gap: .65rem; align-items: flex-start; margin-top: 1.25rem; font-size: .88rem; color: var(--muted); }
-  .consent input { margin-top: .22rem; accent-color: var(--acc1); width: 16px; height: 16px; flex: none; }
-  .consent b { color: var(--text); }
+  /* consent + run */
+  .consent { display: flex; gap: .55rem; align-items: flex-start; margin-top: 1.1rem; font-size: 12.5px; color: var(--muted); }
+  .consent input { margin-top: .18rem; accent-color: var(--accent); width: 14px; height: 14px; flex: none; }
+  .consent b { color: var(--fg); }
   button.run {
-    margin-top: 1.25rem; width: 100%; padding: .85rem; font-size: 1rem; font-weight: 700; color: #fff;
-    background: var(--grad); border: 0; border-radius: 12px; cursor: pointer;
-    box-shadow: 0 6px 24px rgba(99,102,241,.35); transition: transform .15s, box-shadow .15s, opacity .15s;
+    margin-top: 1.1rem; width: 100%; padding: .5rem; font-size: 14px; font-weight: 500; color: #fff;
+    background: var(--btn); border: 1px solid rgba(31,35,40,.15); border-radius: 6px; cursor: pointer;
+    transition: background .12s;
   }
-  button.run:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(99,102,241,.5); }
-  button.run:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; }
+  button.run:hover:not(:disabled) { background: var(--btn-hover); }
+  button.run:disabled { opacity: .55; cursor: not-allowed; }
   .spin {
-    display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35);
-    border-top-color: #fff; border-radius: 50%; vertical-align: -2px; margin-right: .55rem;
+    display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.35);
+    border-top-color: #fff; border-radius: 50%; vertical-align: -2px; margin-right: .5rem;
     animation: spin 1s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ---------- result ---------- */
+  /* result */
   .status {
-    display: inline-flex; align-items: center; gap: .45rem; font-weight: 700;
-    padding: .5rem .95rem; border-radius: 999px; margin-bottom: .9rem; font-size: .92rem;
+    display: inline-flex; align-items: center; gap: .45rem; font-weight: 600; font-size: 14px;
+    margin-bottom: .7rem;
   }
-  .status.ok { background: rgba(52,211,153,.12); color: var(--ok); border: 1px solid rgba(52,211,153,.35); }
-  .status.bad { background: rgba(248,113,113,.10); color: var(--bad); border: 1px solid rgba(248,113,113,.30); }
-  .status.wait { background: rgba(99,102,241,.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,.40); }
-  .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; }
-  .chip {
-    background: var(--panel2); border: 1px solid var(--border); border-radius: 999px;
-    padding: .3rem .85rem; font-size: .82rem; color: var(--muted);
-  }
-  .chip b { color: var(--text); font-weight: 600; }
+  .status .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .status.ok { color: var(--green); } .status.ok .dot { background: var(--green); }
+  .status.bad { color: var(--red); } .status.bad .dot { background: var(--red); }
+  .status.wait { color: var(--muted); } .status.wait .dot { background: var(--dim); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: .8rem; }
+  .meta b { color: var(--fg); font-weight: 600; }
+  .meta span { margin-right: 1.2rem; white-space: nowrap; display: inline-block; }
   .vreason {
-    font-size: .85rem; color: var(--muted); border-left: 3px solid var(--acc1);
-    padding: .4rem .85rem; background: rgba(99,102,241,.06); border-radius: 0 8px 8px 0; margin-bottom: 1rem;
+    font-size: 12.5px; color: var(--muted); border: 1px solid var(--border-muted);
+    border-left: 3px solid var(--border); background: var(--subtle);
+    padding: .45rem .8rem; border-radius: 0 6px 6px 0; margin-bottom: 1rem;
   }
-  .timeline { position: relative; margin: .3rem 0 0 .5rem; padding-left: 1.35rem; }
-  .tstep { position: relative; padding: .45rem 0 .45rem .4rem; font-size: .87rem; }
-  .tstep::before {
-    content: ''; position: absolute; left: -1.35rem; top: .95rem; width: 9px; height: 9px;
-    border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(52,211,153,.15);
+  .steps-head {
+    font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .04em; margin: .8rem 0 .3rem;
   }
-  .tstep.fail::before { background: var(--bad); box-shadow: 0 0 0 3px rgba(248,113,113,.15); }
-  .tstep::after {
-    content: ''; position: absolute; left: -.95rem; top: 1.55rem; bottom: -.35rem;
-    width: 1px; background: var(--border);
-  }
-  .tstep:last-child::after { display: none; }
-  .tstep .act { font-weight: 600; }
-  .tstep.fail .act { color: var(--bad); }
-  .tstep .obs { color: var(--muted); font-size: .82rem; margin-top: .12rem; }
-  .err { color: var(--bad); white-space: pre-wrap; }
-  .foot { text-align: center; color: var(--dim); font-size: .8rem; margin-top: 2.2rem; }
+  table.steps { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.steps th, table.steps td { text-align: left; padding: .4rem .55rem; border-bottom: 1px solid var(--border-muted); vertical-align: top; }
+  table.steps th { color: var(--muted); font-weight: 600; font-size: 11.5px; background: var(--subtle); }
+  table.steps td.num { color: var(--dim); width: 2rem; }
+  table.steps td.act { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+  table.steps td.act .fail { color: var(--red); font-weight: 600; }
+  table.steps td.obs { color: var(--muted); }
+  .err { color: var(--red); white-space: pre-wrap; font-size: 13px; }
+  .foot { color: var(--dim); font-size: 12px; margin-top: 2rem; text-align: center; }
   .foot a { color: var(--muted); }
-  @media (max-width: 560px) { .card { padding: 1.1rem; } header { padding-top: 1.8rem; } }
+  @media (max-width: 560px) { .card { padding: .9rem; } .card > h2 { margin: -.9rem -.9rem 1rem; padding: .6rem .9rem; } }
 </style>
 </head>
 
 <body>
-<div class="langswitch">
-  <button id="lang_ru">RU</button><button id="lang_en">EN</button>
+<div class="topbar">
+  <div class="wrap inner">
+    <div class="wordmark">Agentalyze <span class="tag">live demo</span></div>
+    <div class="langswitch">
+      <button id="lang_ru">RU</button><button id="lang_en">EN</button>
+    </div>
+  </div>
 </div>
 <div class="wrap">
-  <header>
-    <div class="logo">A</div>
-    <h1><span class="grad" data-i18n="title"></span> <span data-i18n="title_suffix"></span></h1>
-  </header>
+  <h1 data-i18n="h1"></h1>
   <p class="sub" data-i18n="sub"></p>
 
   <div class="notice">
-    <div class="ntitle">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span data-i18n="notice_title"></span>
-    </div>
+    <div class="ntitle" data-i18n="notice_title"></div>
     <ul>
       <li data-i18n="notice_1"></li>
       <li data-i18n="notice_2"></li>
@@ -182,6 +176,7 @@
   </div>
 
   <div class="card">
+    <h2 data-i18n="card_form"></h2>
     <label for="base_url" data-i18n="label_endpoint"></label>
     <select id="base_url">
       <option value="https://openrouter.ai/api/v1" selected>OpenRouter (openrouter.ai)</option>
@@ -210,63 +205,65 @@
     <button class="run" id="run" disabled data-i18n="btn_run"></button>
   </div>
 
-  <div class="card result" id="result_card" style="display:none">
+  <div class="card" id="result_card" style="display:none">
+    <h2 data-i18n="card_result"></h2>
     <div id="result"></div>
   </div>
 
   <footer class="foot">
-    <span data-i18n="foot"></span><br>
-    <a href="https://github.com/Ilyat9/Agentalyze" target="_blank" rel="noopener">github.com/Ilyat9/Agentalyze</a>
+    <span data-i18n="foot"></span> ·
+    <a href="https://github.com/Ilyat9/Agentalyze" target="_blank" rel="noopener">GitHub</a>
   </footer>
 </div>
-
 <script>
 "use strict";
 var I18N = {
   ru: {
-    title: "Agentalyze",
-    title_suffix: "— живое демо · свой API-ключ",
-    sub: "Настоящий агент, настоящий headless Chromium, тестовый сайт — работает на твоём API-ключе.",
-    notice_title: "Как обрабатывается твой API-ключ — прочитай перед запуском:",
-    notice_1: "Ключ отправляется по <strong>HTTPS</strong> на этот сервер <strong>только когда ты нажмёшь «Запустить»</strong>. В браузере он не сохраняется (ни localStorage, ни cookies).",
-    notice_2: "Обработка происходит <strong>на сервере</strong>, а не в браузере: сервер запускает реальный headless Chromium, который выполняет страницы задач, и обращается к API твоего провайдера с твоим ключом для решений модели.",
-    notice_3: "Ключ используется <strong>только для этого одного запроса</strong>, держится в памяти на время прогона, <strong>никогда не логируется и не сохраняется</strong>. Удаляется сразу после завершения запроса.",
-    notice_4: "Вызовы модели оплачиваются <strong>с твоего аккаунта</strong>. Задачи крошечные (максимум 8 шагов), стоимость — доли цента.",
-    notice_5: "Первый запуск после простоя может занять до минуты — бесплатный хостинг «просыпается» по запросу. Это свойство платформы, а не сбой.",
+    h1: "Запусти браузерного агента на своём API-ключе",
+    sub: "Настоящий headless Chromium выполняет задачу на тестовом сайте; решения принимает твоя модель. Демо работает на ключе OpenRouter или другого OpenAI-совместимого провайдера.",
+    card_form: "Конфигурация запуска",
+    card_result: "Результат",
+    notice_title: "Как обрабатывается твой API-ключ",
+    notice_1: "Ключ отправляется по <strong>HTTPS</strong> на этот сервер <strong>только при нажатии «Запустить»</strong>. В браузере не сохраняется (ни localStorage, ни cookies).",
+    notice_2: "Обработка происходит <strong>на сервере</strong>: сервер запускает headless Chromium и обращается к API твоего провайдера с твоим ключом.",
+    notice_3: "Ключ используется <strong>только для этого одного запроса</strong>, живёт в памяти на время прогона, <strong>не логируется и не сохраняется</strong>, удаляется сразу после ответа.",
+    notice_4: "Вызовы модели оплачиваются <strong>с твоего аккаунта</strong>. Задачи ограничены 8 шагами — стоимость доли цента.",
+    notice_5: "Первый запуск после простоя может занять до минуты — бесплатный хостинг «просыпается» по запросу.",
     label_endpoint: "Эндпоинт провайдера (OpenAI-совместимый)",
     option_custom: "Свой base URL…",
-    hint_endpoint: "Только облачные OpenAI-совместимые эндпоинты (Ollama недоступна: анонимный сервер не достучится до твоей машины).",
-    label_model: "Название модели",
-    hint_model: "Например <code>openai/gpt-4o-mini</code> (OpenRouter) или <code>gpt-4o-mini</code> (OpenAI). Нужна поддержка tool-calling.",
-    label_key: "Твой API-ключ",
-    hint_key: "Уйдёт только вместе с нажатием «Запустить»; нигде не сохраняется.",
-    label_tasks: "Выбери задачу",
+    hint_endpoint: "Только облачные OpenAI-совместимые эндпоинты (Ollama недоступна анонимному серверу).",
+    label_model: "Модель",
+    hint_model: "Например <code>openai/gpt-4o-mini</code> (OpenRouter) или <code>gpt-4o-mini</code> (OpenAI). Нужен tool-calling.",
+    label_key: "API-ключ",
+    hint_key: "Уходит только вместе с запросом «Запустить»; нигде не сохраняется.",
+    label_tasks: "Задача",
     tasks_loading: "Загрузка задач…",
-    tasks_error: "Не удалось загрузить список задач. Включён ли демо-режим на сервере?",
+    tasks_error: "Не удалось загрузить список задач.",
     steps_suffix: "шаг. макс",
     custom_title: "Своя задача",
-    custom_badge: "new",
-    custom_hint: "Опиши цель словами — агент попытается выполнить её на той же тестовой странице портала.",
+    custom_badge: "custom",
+    custom_hint: "Опиши цель словами — агент выполнит её на тестовой странице портала.",
     custom_placeholder: "Например: найди на странице ссылку «Privacy Policy» и перейди по ней",
-    custom_note: "Для своей задачи успех — вердикт самого агента (самоотчёт): объективная DOM-проверка произвольной цели невозможна, и демо честно это помечает. Таймлайн выше показывает, что реально происходило.",
+    custom_note: "Для своей задачи успех — вердикт самого агента (самоотчёт): объективная DOM-проверка произвольной цели невозможна. Таблица шагов показывает, что реально происходило.",
     consent_text: "Я понимаю, что мой API-ключ будет отправлен на сервер демо по HTTPS, обработан <b>на сервере</b> для этого одного прогона и не будет сохранён или записан в логи.",
     btn_run: "Запустить",
-    running_wait: "Агент работает…",
-    running: "Реальный браузерный агент выполняет задачу — обычно 15–90 секунд (первый запуск после простоя — до минуты).",
+    running_wait: "Выполняется…",
+    running: "Агент работает в реальном браузере — обычно 15–90 секунд (первый запуск после простоя — до минуты).",
     st_completed: "Успех",
     st_failed: "Не решено",
-    st_timeout: "Не уложился вовремя",
+    st_timeout: "Не уложился в таймаут",
     st_error: "Ошибка",
-    outcome_prefix: " · исход: ",
+    outcome_prefix: " — ",
     stats_steps: "Шаги", stats_time: "Время", stats_tokens: "Токены", stats_cost: "Стоимость",
     stats_tokens_fmt: "{i} вход / {o} выход",
     verifier: "Верификатор",
+    steps_list: "Шаги прогона",
     network_err: "Сетевая ошибка: ",
-    err_auth: "Провайдер отклонил API-ключ (401/403). Проверь, что ключ действителен и имеет доступ к выбранной модели.",
+    err_auth: "Провайдер отклонил API-ключ (401/403). Проверь ключ и доступ к выбранной модели.",
     err_timeout: "Провайдер не ответил вовремя. Попробуй ещё раз или возьми более быструю модель.",
     err_connection: "Не удалось подключиться к эндпоинту провайдера. Проверь base URL (должен быть публично доступен по HTTPS).",
     err_provider: "Провайдер вернул ошибку во время прогона.",
-    timeout_msg: "Прогон не уложился в {n} секунд и был остановлен. Это честное ограничение демо, не обязательно провал модели.",
+    timeout_msg: "Прогон не уложился в {n} секунд и был остановлен. Это ограничение демо, не обязательно провал модели.",
     outcomes: {
       success: "успех",
       failure_verifier: "агент объявил о завершении, но проверка не согласна",
@@ -277,56 +274,58 @@ var I18N = {
       failure_crash: "внутренний сбой"
     },
     tasks: {
-      "nav-simple-link-01": { t: "Перейти по ссылке в документацию", d: "Открой стартовую страницу портала Acme. Найди ссылку, ведущую в раздел Documentation, и перейди по ней." },
-      "form-fill-basic-01": { t: "Заполнить контактную форму", d: "Заполни форму обратной связи: имя «Ivan Petrov», email «ivan@example.com», сообщение «My order has not arrived». Отправь её." },
-      "extract-price-01": { t: "Найти цену товара", d: "Найди цену «Nordic Chair» на странице. Запиши ответ в поле Answer числом в долларах (например 12.34) с уверенностью от 0 до 1 и отправь." }
+      "nav-simple-link-01": { t: "Перейти по ссылке в документацию", d: "Открой стартовую страницу портала Acme. Найди ссылку в раздел Documentation и перейди по ней." },
+      "form-fill-basic-01": { t: "Заполнить контактную форму", d: "Заполни форму обратной связи: имя «Ivan Petrov», email «ivan@example.com», сообщение «My order has not arrived». Отправь." },
+      "extract-price-01": { t: "Найти цену товара", d: "Найди цену «Nordic Chair». Запиши ответ в поле Answer числом в долларах (например 12.34) с уверенностью 0–1 и отправь." }
     },
-    foot: "Agentalyze — открытый бенчмарк-харнесс для браузерных агентов: честные прогоны, полный трейс каждого шага."
+    foot: "Agentalyze — открытый бенчмарк-харнесс для браузерных агентов"
   },
   en: {
-    title: "Agentalyze",
-    title_suffix: "— live demo · bring your own key",
-    sub: "A real agent, a real headless Chromium, a benchmark site — powered by your API key.",
-    notice_title: "How your API key is handled — please read before running anything:",
-    notice_1: "The key is sent over <strong>HTTPS</strong> to this server <strong>only when you press “Run”</strong>. It is never stored in your browser (no localStorage, no cookies).",
-    notice_2: "Processing happens <strong>server-side</strong>, not in your browser: the server runs a real headless Chromium driving the task pages and calls your provider’s API with your key for model decisions.",
-    notice_3: "The key is used <strong>for this single request only</strong>, kept in memory for the duration of the run, <strong>never logged and never persisted</strong>. It is discarded when your run finishes.",
-    notice_4: "Model calls are billed <strong>to your own account</strong>. Tasks are deliberately tiny (8 steps max), so the cost is a fraction of a cent.",
-    notice_5: "First run after a quiet period can take up to a minute — free hosting “sleeps” and wakes on demand. That’s the platform, not a failure.",
+    h1: "Run a browser agent with your own API key",
+    sub: "A real headless Chromium executes the task on a benchmark site; your model makes the decisions. Works with an OpenRouter or any OpenAI-compatible key.",
+    card_form: "Run configuration",
+    card_result: "Result",
+    notice_title: "How your API key is handled",
+    notice_1: "The key is sent over <strong>HTTPS</strong> to this server <strong>only when you press “Run”</strong>. Never stored in your browser (no localStorage, no cookies).",
+    notice_2: "Processing happens <strong>server-side</strong>: the server runs headless Chromium and calls your provider’s API with your key.",
+    notice_3: "The key is used <strong>for this single request only</strong>, kept in memory for the run, <strong>never logged or persisted</strong>, discarded with the response.",
+    notice_4: "Model calls are billed <strong>to your account</strong>. Tasks are capped at 8 steps — a fraction of a cent.",
+    notice_5: "The first run after a quiet period can take up to a minute — free hosting wakes up on demand.",
     label_endpoint: "Provider endpoint (OpenAI-compatible)",
     option_custom: "Custom base URL…",
-    hint_endpoint: "Only cloud OpenAI-compatible endpoints (Ollama is not offered: an anonymous server cannot reach your machine).",
-    label_model: "Model name",
-    hint_model: "e.g. <code>openai/gpt-4o-mini</code> (OpenRouter) or <code>gpt-4o-mini</code> (OpenAI). Tool-calling support is required.",
-    label_key: "Your API key",
-    hint_key: "Sent only with the “Run” request; never saved anywhere.",
-    label_tasks: "Pick a task",
+    hint_endpoint: "Cloud OpenAI-compatible endpoints only (Ollama is unreachable from an anonymous server).",
+    label_model: "Model",
+    hint_model: "e.g. <code>openai/gpt-4o-mini</code> (OpenRouter) or <code>gpt-4o-mini</code> (OpenAI). Tool calling required.",
+    label_key: "API key",
+    hint_key: "Sent only with the “Run” request; never stored.",
+    label_tasks: "Task",
     tasks_loading: "Loading tasks…",
-    tasks_error: "Could not load the task list. Is the demo enabled on this server?",
+    tasks_error: "Could not load the task list.",
     steps_suffix: "steps max",
     custom_title: "Your own task",
-    custom_badge: "new",
-    custom_hint: "Describe the goal in plain words — the agent will attempt it on the same demo portal page.",
+    custom_badge: "custom",
+    custom_hint: "Describe the goal in plain words — the agent will attempt it on the demo portal page.",
     custom_placeholder: "e.g. find the “Privacy Policy” link on the page and follow it",
-    custom_note: "For a custom task, success is the agent’s own verdict (self-reported): no objective DOM check exists for an arbitrary goal, and the demo labels this honestly. The timeline above shows what actually happened.",
+    custom_note: "For a custom task, success is the agent’s own verdict (self-reported): no objective DOM check exists for an arbitrary goal. The step table shows what actually happened.",
     consent_text: "I understand my API key is sent to this demo server over HTTPS, processed <b>server-side</b> for this one run, and never stored or logged.",
     btn_run: "Run",
-    running_wait: "Agent is working…",
-    running: "A real browser agent is on it — usually 15–90 seconds (the first run after idle can take up to a minute).",
+    running_wait: "Running…",
+    running: "A real browser agent is on it — usually 15–90 seconds (first run after idle: up to a minute).",
     st_completed: "Success",
     st_failed: "Not solved",
     st_timeout: "Timed out",
     st_error: "Error",
-    outcome_prefix: " · outcome: ",
+    outcome_prefix: " — ",
     stats_steps: "Steps", stats_time: "Wall time", stats_tokens: "Tokens", stats_cost: "Cost",
     stats_tokens_fmt: "{i} in / {o} out",
     verifier: "Verifier",
+    steps_list: "Run steps",
     network_err: "Network error: ",
-    err_auth: "The provider rejected the API key (401/403). Check that the key is valid and allowed to use the selected model.",
+    err_auth: "The provider rejected the API key (401/403). Check the key and model access.",
     err_timeout: "The provider did not answer in time. Try again or pick a faster model.",
-    err_connection: "Could not reach the provider endpoint. Check the base URL (it must be publicly reachable over HTTPS).",
+    err_connection: "Could not reach the provider endpoint. Check the base URL (must be publicly reachable over HTTPS).",
     err_provider: "The provider returned an error during the run.",
-    timeout_msg: "The run did not finish within {n} seconds and was stopped. This is an honest limit of the demo, not necessarily a model failure.",
+    timeout_msg: "The run did not finish within {n} seconds and was stopped. This is a demo limit, not necessarily a model failure.",
     outcomes: {
       success: "success",
       failure_verifier: "agent declared done, verifier disagreed",
@@ -337,7 +336,7 @@ var I18N = {
       failure_crash: "internal crash"
     },
     tasks: {},
-    foot: "Agentalyze is an open-source benchmark harness for browser agents: honest runs, a full trace of every step."
+    foot: "Agentalyze — an open-source benchmark harness for browser agents"
   }
 };
 var consent = document.getElementById("consent");
@@ -425,11 +424,10 @@ function renderTasks() {
     '<textarea id="custom_instructions" rows="3" maxlength="500" spellcheck="false" placeholder="' +
     escapeHtml(t("custom_placeholder")) + '"></textarea>' +
     '<div class="counter"><span id="ccount">' + customText.length + '</span>/500</div>';
-  var customTile = makeTile("custom", escapeHtml(t("custom_title")) +
+  tasksBox.appendChild(makeTile("custom", escapeHtml(t("custom_title")) +
     ' <span class="badge">' + t("custom_badge") + '</span>' +
     ' <span class="steps">(8 ' + t("steps_suffix") + ")</span>",
-    t("custom_hint"), customExtra);
-  tasksBox.appendChild(customTile);
+    t("custom_hint"), customExtra));
   var ta2 = document.getElementById("custom_instructions");
   ta2.value = customText;
   ta2.addEventListener("input", function () {
@@ -475,8 +473,8 @@ runBtn.addEventListener("click", function () {
 
   runBtn.disabled = true;
   resultCard.style.display = "block";
-  resultBox.innerHTML = '<span class="status wait"><span class="spin"></span>' +
-    escapeHtml(t("running_wait")) + "</span><div class=\"hint\">" + escapeHtml(t("running")) + "</div>";
+  resultBox.innerHTML = '<div class="status wait"><span class="dot"></span>' +
+    escapeHtml(t("running_wait")) + '</div><div class="hint">' + escapeHtml(t("running")) + "</div>";
   resultBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   fetch("/demo/run", {
@@ -489,7 +487,7 @@ runBtn.addEventListener("click", function () {
     lastData = res.data;
     render(res.data);
   }).catch(function (err) {
-    resultBox.innerHTML = '<span class="err">' + escapeHtml(t("network_err") + String(err)) + "</span>";
+    resultBox.innerHTML = '<div class="err">' + escapeHtml(t("network_err") + String(err)) + "</div>";
   }).finally(function () {
     runBtn.disabled = !consent.checked;
     document.getElementById("api_key").value = "";
@@ -500,33 +498,35 @@ function render(data) {
   if (data.status === "completed" || data.status === "failed") {
     var good = data.status === "completed";
     var outcomeText = (I18N[lang].outcomes || {})[data.outcome] || data.outcome;
-    var html = '<span class="status ' + (good ? "ok" : "bad") + '">' +
+    var html = '<div class="status ' + (good ? "ok" : "bad") + '"><span class="dot"></span>' +
       escapeHtml((good ? t("st_completed") : t("st_failed")) + t("outcome_prefix") + outcomeText) +
-      "</span>";
-    html += '<div class="chips">' +
-      chip(t("stats_steps"), data.step_count) +
-      chip(t("stats_time"), data.wall_clock_seconds + "s") +
-      chip(t("stats_tokens"), t("stats_tokens_fmt")
-        .replace("{i}", data.total_prompt_tokens)
-        .replace("{o}", data.total_completion_tokens)) +
-      (data.total_cost_usd != null ? chip(t("stats_cost"), "$" + data.total_cost_usd.toFixed(4)) : "") +
+      "</div>";
+    html += '<div class="meta">' +
+      "<span>" + t("stats_steps") + ": <b>" + data.step_count + "</b></span>" +
+      "<span>" + t("stats_time") + ": <b>" + data.wall_clock_seconds + "s</b></span>" +
+      "<span>" + t("stats_tokens") + ": <b>" +
+        escapeHtml(t("stats_tokens_fmt")
+          .replace("{i}", data.total_prompt_tokens)
+          .replace("{o}", data.total_completion_tokens)) + "</b></span>" +
+      (data.total_cost_usd != null ? "<span>" + t("stats_cost") + ": <b>$" + data.total_cost_usd.toFixed(4) + "</b></span>" : "") +
       "</div>";
     if (data.verifier_reason) {
-      html += '<div class="vreason"><b>' + escapeHtml(t("verifier")) + ':</b> ' +
+      html += '<div class="vreason"><b>' + escapeHtml(t("verifier")) + ":</b> " +
         escapeHtml(data.verifier_reason) + "</div>";
     }
     if (data.task_id === "custom") {
       html += '<div class="hint" style="margin:.2rem 0 1rem">' + escapeHtml(t("custom_note")) + "</div>";
     }
     if ((data.steps || []).length) {
-      html += '<div class="timeline">';
+      html += '<div class="steps-head">' + escapeHtml(t("steps_list")) + "</div>";
+      html += '<table class="steps"><tr><th>#</th><th>' + escapeHtml(t("stats_steps")) +
+        '</th><th></th></tr>';
       data.steps.forEach(function (s) {
-        html += '<div class="tstep' + (s.ok === false ? " fail" : "") + '"><span class="act">' +
-          s.step + ". " + escapeHtml(s.action) + (s.ok === false ? " ✗" : "") + "</span>" +
-          (s.observation ? '<div class="obs">' + escapeHtml(s.observation) + "</div>" : "") +
-          "</div>";
+        html += '<tr><td class="num">' + s.step + '</td><td class="act">' + escapeHtml(s.action) +
+          (s.ok === false ? ' <span class="fail">✗</span>' : "") +
+          '</td><td class="obs">' + escapeHtml(s.observation || "") + "</td></tr>";
       });
-      html += "</div>";
+      html += "</table>";
     }
     resultBox.innerHTML = html;
   } else {
@@ -545,13 +545,9 @@ function render(data) {
       msg = data.message || data.detail || JSON.stringify(data);
     }
     var statusKey = { timeout: "st_timeout", error: "st_error" }[data.status] || "st_error";
-    resultBox.innerHTML = '<span class="status bad">' + escapeHtml(t(statusKey)) + "</span>" +
-      '<div class="err">' + escapeHtml(msg) + "</div>";
+    resultBox.innerHTML = '<div class="status bad"><span class="dot"></span>' + escapeHtml(t(statusKey)) +
+      '</div><div class="err">' + escapeHtml(msg) + "</div>";
   }
-}
-
-function chip(label, value) {
-  return '<span class="chip">' + escapeHtml(label) + ": <b>" + escapeHtml(value) + "</b></span>";
 }
 
 applyLang();
