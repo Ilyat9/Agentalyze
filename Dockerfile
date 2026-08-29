@@ -90,6 +90,12 @@ COPY fixtures/ ./fixtures/
 COPY providers.example.yaml pricing.example.yaml ./
 ENV AGENTALYZE_FIXTURES_DIR=/app/fixtures
 
+# NOTE: no VOLUME declaration on purpose. Anonymous volumes declared via
+# VOLUME are a known source of container-start failures on PaaS runtimes
+# (observed on Render: instant exit 128 with zero process output). The
+# artifacts directory is still created and chowned below; mount a host
+# directory over it if persistence is needed.
+
 # Run as non-root: the Playwright image provides the 'pwuser' (uid 1000) for
 # exactly this purpose — Chromium's sandbox refuses to run as root. Make sure
 # the default artifacts directory exists AND is writable by pwuser even when
@@ -98,13 +104,14 @@ ENV AGENTALYZE_FIXTURES_DIR=/app/fixtures
 RUN mkdir -p /app/results && chown pwuser:pwuser /app/results
 USER pwuser
 
-# Declare the mount point for run artifacts (see header comment).
-VOLUME ["/app/results"]
-
-# `agentalyze` is the console-script entry point registered in pyproject.toml
-# (Phase 3): container usage reads like CLI usage, no internal module paths:
+# Entrypoint wrapper (see deploy/agentalyze-entrypoint.sh): adds startup
+# diagnostics and the optional AGENTALYZE_SERVE_ON_START PaaS mode, while
+# keeping plain CLI usage identical (`docker run image compare ...`):
 #   docker run --rm agentalyze compare --providers ... --category ...
-ENTRYPOINT ["agentalyze"]
+# NOTE: copied (with exec bits) BEFORE switching to pwuser, because chmod
+# after USER would fail; BuildKit's --chmod avoids an extra RUN layer.
+COPY --chmod=0755 deploy/agentalyze-entrypoint.sh /usr/local/bin/agentalyze-entrypoint
+ENTRYPOINT ["/usr/local/bin/agentalyze-entrypoint"]
 
 # This is an on-demand CLI tool, NOT a long-lived service: a bare
 # `docker run` / `docker compose up` prints the help text and exits cleanly
